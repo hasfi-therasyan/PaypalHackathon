@@ -20,11 +20,10 @@ export default function RefereeAppealPage() {
     async function fetchAppealData() {
       try {
         const res = await fetch(`/api/pledges/${token}`);
-        if (!res.ok) throw new Error('Invalid or expired referee link.');
+        if (!res.ok) throw new Error('Invalid or expired referee token.');
         const json = await res.json();
         setData(json);
 
-        // Check if friend decision was already recorded or pledge is settled
         if (json.pledge.status !== 'APPEAL_WINDOW_OPEN') {
           setAlreadyDecided(true);
         }
@@ -39,7 +38,7 @@ export default function RefereeAppealPage() {
 
   async function handleDecision(approved: boolean) {
     if (!note.trim()) {
-      setError('Please provide a mandatory note explaining your referee decision.');
+      setError('Please provide a mandatory written explanation for your referee decision.');
       return;
     }
 
@@ -66,102 +65,112 @@ export default function RefereeAppealPage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto py-16 text-center">
+      <div className="max-w-3xl mx-auto py-20 text-center">
         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Loading referee evaluation console...</p>
+        <p className="text-sm text-slate-500 font-medium">Verifying friend referee token...</p>
       </div>
     );
   }
 
   if (error && !data?.pledge) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-center">
-          <h2 className="text-lg font-bold text-red-800 mb-2">Referee Link Expired</h2>
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-          <Link href="/" className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-semibold">
-            Return to Stake Home
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <div className="p-6 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-3">
+          <h2 className="text-base font-bold text-rose-800">Token Inactive or Expired</h2>
+          <p className="text-xs text-rose-600">{error}</p>
+          <Link href="/" className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+            Return to Dashboard
           </Link>
         </div>
       </div>
     );
   }
 
-  const { pledge, proof, verdicts } = data;
+  const { pledge, proof } = data;
   const formattedMoney = `${(pledge.stake_cents / 100).toFixed(2)} USD (sandbox)`;
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 space-y-6">
-      <div className="text-center pb-4 border-b border-slate-200">
-        <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs font-semibold rounded-full uppercase tracking-wider">
-          Friend Referee Authority
+    <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
+      {/* Tribunal Header */}
+      <div className="text-center space-y-2 pb-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-900 text-xs font-bold rounded-full uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-purple-600" />
+          Friend Referee Appeal Tribunal
         </span>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-3">
-          Final Decision: Referee Review
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          Review & Final Verdict
         </h1>
-        <p className="text-sm text-slate-500 mt-2">
-          You are the chosen referee for <strong>{pledge.title}</strong>. Your single decision overrides all automated findings.
+        <p className="text-xs text-slate-500 max-w-md mx-auto">
+          You are the nominated referee for <strong>{pledge.title}</strong>. Your single decision overrides all automated findings.
         </p>
       </div>
 
       {error && (
-        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
           <strong>Notice:</strong> {error}
         </div>
       )}
 
       {alreadyDecided ? (
-        <div className="p-8 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</span>
-          <h2 className="text-xl font-bold text-slate-900">
+        <div className="p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-4 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">
             Decision Finalized (Status: {pledge.status})
           </h2>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
-            This appeal has already been resolved or the 24-hour window has ended. The decision is permanent and cryptographically recorded in the ledger.
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            This sprint appeal has been finalized and sealed in the SHA-256 ledger. This referee link is now permanently closed.
           </p>
           <Link
             href={`/pledges/${pledge.id}/verdict`}
-            className="inline-block mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold shadow hover:bg-indigo-700"
+            className="inline-block px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm"
           >
-            View Official Verdict →
+            Inspect Official Verdict →
           </Link>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Pledge & Evidence Card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          {/* Contract Terms Summary */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100">
-              Contract Terms & Evidence
+              Contract Terms & Financial Stakes
             </h2>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="text-slate-500 font-medium">Hold at Risk:</span>
-                <p className="text-base font-bold text-indigo-600 mt-1">{formattedMoney}</p>
+              <div className="p-4 bg-slate-50 border border-slate-200/70 rounded-xl">
+                <span className="font-semibold text-slate-500">PayPal Authorization Hold:</span>
+                <p className="text-xl font-extrabold text-indigo-700 mt-1">{formattedMoney}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Voided on approval; captured on denial</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <span className="text-slate-500 font-medium">Beneficiary if Denied:</span>
-                <p className="text-sm font-bold text-slate-800 mt-1">{pledge.beneficiary_name} ({pledge.beneficiary_paypal_email})</p>
+
+              <div className="p-4 bg-slate-50 border border-slate-200/70 rounded-xl">
+                <span className="font-semibold text-slate-500">Beneficiary if Denied:</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">{pledge.beneficiary_name}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 font-mono">{pledge.beneficiary_paypal_email}</p>
               </div>
             </div>
 
-            {/* AI Findings Summary */}
+            {/* Evidence summary */}
             {proof?.ai_findings_json && (
-              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-900 space-y-1">
-                <p className="font-bold">Automated Referee Findings:</p>
-                <p>{proof.ai_findings_json.summary || JSON.stringify(proof.ai_findings_json)}</p>
+              <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-950 space-y-1">
+                <p className="font-bold">Automated Findings for Your Consideration:</p>
+                <p className="leading-relaxed">{proof.ai_findings_json.summary}</p>
               </div>
             )}
           </div>
 
-          {/* Decision Form */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          {/* Form Decision */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-sm space-y-5">
             <h2 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100">
-              Your Written Reasoning & Verdict
+              Referee Reasoning & Final Ruling
             </h2>
 
             <div>
-              <label htmlFor="refereeNote" className="block text-xs font-semibold text-slate-700 mb-1">
-                Referee Note (Mandatory explanation required by rubric) *
+              <label htmlFor="refereeNote" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Written Referee Note (Mandatory) *
               </label>
               <textarea
                 id="refereeNote"
@@ -169,17 +178,20 @@ export default function RefereeAppealPage() {
                 required
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="e.g. I inspected the commits and can confirm the work was authentic and substantive despite the formatting changes."
-                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500"
+                placeholder="e.g. I verified the commits directly and confirm substantive code contributions were made on schedule."
+                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500"
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                This note will be permanently written to the ledger as part of the FRIEND_DECISION event.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
                 disabled={submitting}
                 onClick={() => handleDecision(true)}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <span>✓ Approve Pledge (Void Hold)</span>
               </button>
@@ -188,13 +200,14 @@ export default function RefereeAppealPage() {
                 type="button"
                 disabled={submitting}
                 onClick={() => handleDecision(false)}
-                className="py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="py-3.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <span>✗ Deny & Forfeit (Capture & Payout)</span>
+                <span>✗ Deny & Forfeit (Capture Hold & Payout)</span>
               </button>
             </div>
-            <p className="text-xs text-center text-slate-400">
-              One decision only. Submitting seals the contract and renders this referee link permanently inactive.
+
+            <p className="text-[11px] text-center text-slate-400 font-mono">
+              Final Authority: One submission only. The contract closes permanently after this click.
             </p>
           </div>
         </div>

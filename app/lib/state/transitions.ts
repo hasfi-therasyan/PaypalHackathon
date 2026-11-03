@@ -49,3 +49,4 @@ export function isWithinGraceCancellation(startsAtIso: string): boolean {
   const fiveMinutesMs = 5 * 60 * 1000;
   return now - start <= fiveMinutesMs;
 }
+

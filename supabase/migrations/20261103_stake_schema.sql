@@ -89,3 +89,4 @@ CREATE INDEX IF NOT EXISTS idx_pledges_status ON pledges(status);
 CREATE INDEX IF NOT EXISTS idx_proofs_pledge_id ON proofs(pledge_id);
 CREATE INDEX IF NOT EXISTS idx_verdicts_pledge_id ON verdicts(pledge_id);
 CREATE INDEX IF NOT EXISTS idx_ledger_pledge_seq ON ledger_events(pledge_id, seq);
+

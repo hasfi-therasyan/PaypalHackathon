@@ -31,7 +31,7 @@ export default function ApproveHoldPage() {
     fetchPledge();
   }, [pledgeId]);
 
-  // Dynamically load PayPal JavaScript SDK with intent=authorize
+  // Load PayPal JavaScript SDK with intent=authorize
   useEffect(() => {
     if (!pledge) return;
 
@@ -99,7 +99,6 @@ export default function ApproveHoldPage() {
     }).render('#paypal-button-container');
   }, [sdkReady, pledge, pledgeId, router]);
 
-  // Fallback simulator for offline or immediate testing
   async function handleSimulateApproval() {
     setAuthorizing(true);
     setError(null);
@@ -125,21 +124,21 @@ export default function ApproveHoldPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto py-16 text-center">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm text-slate-500">Loading pledge details...</p>
+      <div className="max-w-xl mx-auto py-20 text-center">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm text-slate-500 font-medium">Securing contract parameters...</p>
       </div>
     );
   }
 
   if (error && !pledge) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-center">
-          <h2 className="text-lg font-bold text-red-800 mb-2">Pledge Not Found</h2>
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-          <Link href="/new" className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-semibold">
-            Create a New Pledge
+      <div className="max-w-lg mx-auto py-12 px-4">
+        <div className="p-6 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-3">
+          <h2 className="text-base font-bold text-rose-800">Contract Not Found</h2>
+          <p className="text-xs text-rose-600">{error}</p>
+          <Link href="/new" className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+            Create New Pledge
           </Link>
         </div>
       </div>
@@ -157,76 +156,92 @@ export default function ApproveHoldPage() {
   });
 
   return (
-    <div className="max-w-2xl mx-auto py-10 px-4 sm:px-6">
-      <div className="text-center mb-8">
-        <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full uppercase tracking-wider">
-          Authorization Step
+    <div className="max-w-xl mx-auto py-8 px-4 space-y-6">
+      {/* Step Indicator Header */}
+      <div className="text-center space-y-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold rounded-full uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          Step 2: PayPal Authorization Hold
         </span>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-3">
-          Approve PayPal Hold
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          Authorize Escrow Hold
         </h1>
-        <p className="text-sm text-slate-500 mt-2">
-          Place a temporary authorization hold to back your promise.
+        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          Commit funds securely through PayPal Sandbox with full authorization protections.
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
           <strong>Notice:</strong> {error}
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
-        {/* Commitment Summary Card */}
-        <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-semibold text-slate-500 uppercase">Pledge Goal</span>
-            <span className="text-xs font-mono text-slate-400">ID: {pledge.id.slice(0, 8)}</span>
+      {/* Main Hold Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+        {/* Stake Summary Banner */}
+        <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-3">
+          <div className="flex justify-between items-center text-xs">
+            <span className="font-bold text-slate-500 uppercase tracking-wider">Contract Title</span>
+            <span className="font-mono text-slate-400">Pledge #{pledge.id.slice(0, 8)}</span>
           </div>
-          <p className="text-lg font-bold text-slate-900">{pledge.title}</p>
-          <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-            <span className="text-sm text-slate-600 font-medium">Authorization Hold:</span>
-            <span className="text-xl font-extrabold text-indigo-600">{formattedMoney}</span>
+          <p className="text-base font-bold text-slate-900">{pledge.title}</p>
+
+          <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+            <span className="text-xs font-semibold text-slate-600">Hold Amount:</span>
+            <span className="text-2xl font-extrabold text-indigo-700 bg-white px-3 py-0.5 rounded-lg border border-slate-200">
+              {formattedMoney}
+            </span>
           </div>
         </div>
 
-        {/* Clear Legal Copy: "Hold, not a charge" */}
-        <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
-          <div className="flex items-center gap-2 text-indigo-900 font-semibold text-sm">
-            <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {/* Legal "Hold, Not a Charge" Clear Guarantee */}
+        <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-2">
+          <div className="flex items-center gap-2 text-indigo-950 font-bold text-sm">
+            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
             This is a hold, not a charge
           </div>
-          <p className="text-xs text-indigo-800 leading-relaxed">
-            No real money moves from your account. Your sandbox buyer account temporarily authorizes{' '}
-            <strong>{formattedMoney}</strong>. When you verify your goal proof before{' '}
+          <p className="text-xs text-indigo-900 leading-relaxed">
+            No money moves out of your balance. PayPal places an authorization reservation for{' '}
+            <strong>{formattedMoney}</strong>. When you verify proof of completion before{' '}
             <strong>{releaseDate}</strong>, the hold is instantly voided and released in full.
           </p>
+          <div className="pt-1 text-[11px] text-indigo-700 flex items-center gap-1 font-mono">
+            <span>✓ 5-Minute Grace Cancellation Available after Hold</span>
+          </div>
         </div>
 
-        {/* PayPal SDK Button Container */}
-        <div>
+        {/* PayPal SDK Action Section */}
+        <div className="space-y-3 pt-2">
           {authorizing ? (
-            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
-              <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-900">Authorizing hold with PayPal API...</p>
-              <p className="text-xs text-slate-500 mt-1">Executing POST /v2/checkout/orders/authorize</p>
+            <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-sm font-bold text-slate-900">Authorizing Hold with PayPal Sandbox...</p>
+              <p className="text-xs text-slate-500 font-mono">Calling POST /v2/checkout/orders/{'{id}'}/authorize</p>
             </div>
           ) : (
             <>
-              <div id="paypal-button-container" className="min-h-[50px] mb-3" />
-              
-              {/* Direct One-Click Sandbox Authorize Button */}
+              {/* PayPal JS SDK Buttons */}
+              <div id="paypal-button-container" className="min-h-[48px]" />
+
+              {/* Direct Sandbox Trigger */}
               <button
                 type="button"
                 onClick={handleSimulateApproval}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm shadow transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow transition-all flex items-center justify-center gap-2"
               >
                 <span>Authorize Hold with Sandbox API →</span>
               </button>
             </>
           )}
+
+          <div className="text-center">
+            <Link href="/" className="text-xs text-slate-400 hover:text-slate-600">
+              Cancel and return to dashboard
+            </Link>
+          </div>
         </div>
       </div>
     </div>

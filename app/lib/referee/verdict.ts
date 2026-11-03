@@ -93,3 +93,4 @@ export function applyFriendDecision(approved: boolean, note: string): VerdictDec
     nextStep: 'CAPTURE_HOLD',
   };
 }
+

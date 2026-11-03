@@ -14,6 +14,7 @@ export default function PledgeDetailPage() {
   const [submittingProof, setSubmittingProof] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // Proof input states
   const [githubRepoInput, setGithubRepoInput] = useState('');
@@ -75,7 +76,7 @@ export default function PledgeDetailPage() {
   }
 
   async function handleGraceCancel() {
-    if (!confirm('Are you sure you want to cancel this pledge within the 5-minute grace period? The PayPal hold will be voided.')) {
+    if (!confirm('Cancel this sprint under the 5-minute grace period? The PayPal authorization hold will be voided.')) {
       return;
     }
     setCancelling(true);
@@ -86,7 +87,6 @@ export default function PledgeDetailPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Cancellation failed.');
 
-      // Refresh
       const refreshRes = await fetch(`/api/pledges/${pledgeId}`);
       setData(await refreshRes.json());
     } catch (err: any) {
@@ -96,23 +96,29 @@ export default function PledgeDetailPage() {
     }
   }
 
+  function handleCopyCode(code: string) {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  }
+
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto py-16 text-center">
+      <div className="max-w-4xl mx-auto py-20 text-center">
         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Loading pledge dashboard...</p>
+        <p className="text-sm text-slate-500 font-medium">Loading sprint command console...</p>
       </div>
     );
   }
 
   if (error && !data?.pledge) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <div className="p-6 bg-red-50 border border-red-200 rounded-xl text-center">
-          <h2 className="text-lg font-bold text-red-800 mb-2">Error</h2>
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-          <Link href="/" className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-semibold">
-            Back to Home
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <div className="p-6 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-3">
+          <h2 className="text-base font-bold text-rose-800">Error</h2>
+          <p className="text-xs text-rose-600">{error}</p>
+          <Link href="/" className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+            Back to Dashboard
           </Link>
         </div>
       </div>
@@ -122,118 +128,129 @@ export default function PledgeDetailPage() {
   const { pledge, proof, verdicts, ledger } = data;
   const formattedStake = `${(pledge.stake_cents / 100).toFixed(2)} USD (sandbox)`;
 
-  // Calculate 5-minute grace cancellation eligibility
   const startsAtTime = new Date(pledge.starts_at).getTime();
   const now = Date.now();
   const canCancel = pledge.status === 'ACTIVE' && now - startsAtTime < 5 * 60 * 1000;
 
-  const statusColors: Record<string, string> = {
-    RUBRIC_LOCKED: 'bg-amber-100 text-amber-800 border-amber-200',
-    ACTIVE: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-    APPEAL_WINDOW_OPEN: 'bg-orange-100 text-orange-800 border-orange-200',
-    SUCCEEDED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    CAPTURED: 'bg-rose-100 text-rose-800 border-rose-200',
-    PAID_OUT: 'bg-slate-200 text-slate-800 border-slate-300',
-    CANCELLED: 'bg-slate-100 text-slate-600 border-slate-200',
+  const statusConfig: Record<string, { label: string; badge: string; dot: string }> = {
+    RUBRIC_LOCKED: { label: 'Rubric Locked', badge: 'bg-amber-50 text-amber-800 border-amber-200', dot: 'bg-amber-500' },
+    ACTIVE: { label: 'Hold Active', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-600 animate-pulse' },
+    APPEAL_WINDOW_OPEN: { label: 'Appeal Window Open', badge: 'bg-orange-50 text-orange-800 border-orange-200', dot: 'bg-orange-500 animate-pulse' },
+    SUCCEEDED: { label: 'Succeeded (Voided)', badge: 'bg-emerald-50 text-emerald-800 border-emerald-200', dot: 'bg-emerald-500' },
+    CAPTURED: { label: 'Hold Captured', badge: 'bg-rose-50 text-rose-800 border-rose-200', dot: 'bg-rose-500' },
+    PAID_OUT: { label: 'Paid Out to Beneficiary', badge: 'bg-slate-100 text-slate-800 border-slate-300', dot: 'bg-slate-500' },
+    CANCELLED: { label: 'Grace Cancelled', badge: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
+  };
+
+  const statusCfg = statusConfig[pledge.status] || {
+    label: pledge.status,
+    badge: 'bg-slate-100 text-slate-700 border-slate-200',
+    dot: 'bg-slate-400',
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6">
-      {/* Top Header */}
+    <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
+      {/* Header with Navigation & Live Badges */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${statusColors[pledge.status] || 'bg-slate-100'}`}>
-              {pledge.status}
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 text-xs font-bold rounded-full border ${statusCfg.badge}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+              {statusCfg.label}
             </span>
-            <span className="text-xs text-slate-500 font-mono">Pledge #{pledge.id.slice(0, 8)}</span>
+            <span className="text-xs text-slate-400 font-mono">Pledge #{pledge.id.slice(0, 8)}</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">{pledge.title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{pledge.title}</h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Link
             href={`/pledges/${pledge.id}/ledger`}
-            className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm transition-colors flex items-center gap-1.5"
           >
             <span>📜 Audit Ledger</span>
             {ledger?.valid ? (
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             ) : (
-              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+              <span className="w-2 h-2 rounded-full bg-rose-500 inline-block animate-pulse" />
             )}
           </Link>
 
           {verdicts && verdicts.length > 0 && (
             <Link
               href={`/pledges/${pledge.id}/verdict`}
-              className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors"
             >
-              View Verdict Details →
+              View Verdict →
             </Link>
           )}
         </div>
       </div>
 
       {error && (
-        <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
           <strong>Notice:</strong> {error}
         </div>
       )}
 
-      {/* Overview Grid */}
+      {/* Contract Telemetry Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <span className="text-xs text-slate-500 font-semibold uppercase">Hold Amount</span>
-          <p className="text-2xl font-bold text-indigo-600 mt-1">{formattedStake}</p>
-          <p className="text-xs text-slate-400 mt-1">PayPal sandbox hold</p>
+        <div className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-sm">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">PayPal Hold Amount</span>
+          <p className="text-2xl font-extrabold text-indigo-700 mt-1">{formattedStake}</p>
+          <p className="text-xs text-slate-400 mt-1 font-mono">Authorization Escrow</p>
         </div>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <span className="text-xs text-slate-500 font-semibold uppercase">Sprint Deadline</span>
+        <div className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-sm">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sprint Honor Period</span>
           <p className="text-sm font-bold text-slate-900 mt-2">
             {new Date(pledge.ends_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
-          <p className="text-xs text-slate-400 mt-1">48-hour max honor period</p>
+          <p className="text-xs text-slate-400 mt-1">48-hour maximum honor window</p>
         </div>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <span className="text-xs text-slate-500 font-semibold uppercase">Friend Referee</span>
-          <p className="text-sm font-bold text-slate-900 mt-2 truncate">{pledge.referee_email}</p>
-          <p className="text-xs text-slate-400 mt-1">24h appeal override authority</p>
+        <div className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-sm">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Beneficiary Counterparty</span>
+          <p className="text-sm font-bold text-slate-900 mt-2 truncate">{pledge.beneficiary_name}</p>
+          <p className="text-xs text-slate-400 mt-1 truncate">{pledge.beneficiary_paypal_email}</p>
         </div>
       </div>
 
-      {/* Active Challenge Code Card (if photo goal) */}
+      {/* Issued Challenge Code Card (if photo goal) */}
       {pledge.goal_type === 'photo' && (
-        <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
+              <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              Issued Challenge Code
+              Cryptographic Challenge Code
             </div>
-            <p className="text-2xl font-mono font-extrabold text-amber-950 mt-1">
+            <p className="text-2xl font-mono font-extrabold text-amber-950">
               {pledge.rubric_json?.challenge_code || 'falcon-cedar-42'}
             </p>
-            <p className="text-xs text-amber-700 mt-1">
-              Write this code clearly on paper next to your workspace/activity proof.
+            <p className="text-xs text-amber-800">
+              Write this code on paper and include it in your physical activity photograph.
             </p>
           </div>
-          <span className="px-3 py-1 bg-white/80 border border-amber-200 rounded-lg font-mono text-xs text-amber-900 font-semibold">
-            Levenshtein ≤ 1 allowed
-          </span>
+
+          <button
+            type="button"
+            onClick={() => handleCopyCode(pledge.rubric_json?.challenge_code || 'falcon-cedar-42')}
+            className="px-3.5 py-2 bg-white hover:bg-amber-100/50 border border-amber-300 text-amber-900 text-xs font-bold rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+          >
+            <span>{copiedCode ? '✓ Copied' : '📋 Copy Code'}</span>
+          </button>
         </div>
       )}
 
-      {/* Proof Submission Section (if ACTIVE) */}
+      {/* Proof Submission Console (if ACTIVE) */}
       {pledge.status === 'ACTIVE' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-          <div className="border-b border-slate-100 pb-3">
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="pb-3 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-900">Submit Verification Proof</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Evaluate against the locked rubric with two verifiable referee signals.
+              Automated rules run first; structured findings second; friend referee has final say.
             </p>
           </div>
 
@@ -242,7 +259,7 @@ export default function PledgeDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="repoInput" className="block text-xs font-semibold text-slate-700 mb-1">
-                    GitHub Repo
+                    GitHub Repo (owner/repo)
                   </label>
                   <input
                     id="repoInput"
@@ -250,12 +267,12 @@ export default function PledgeDetailPage() {
                     required
                     value={githubRepoInput}
                     onChange={(e) => setGithubRepoInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                   />
                 </div>
                 <div>
                   <label htmlFor="authorInput" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Author Username
+                    Commit Author Username
                   </label>
                   <input
                     id="authorInput"
@@ -263,7 +280,7 @@ export default function PledgeDetailPage() {
                     required
                     value={githubAuthorInput}
                     onChange={(e) => setGithubAuthorInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                   />
                 </div>
               </div>
@@ -271,7 +288,7 @@ export default function PledgeDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="codeReadInput" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Challenge Code Read
+                    Challenge Code Read from Photo
                   </label>
                   <input
                     id="codeReadInput"
@@ -279,7 +296,7 @@ export default function PledgeDetailPage() {
                     required
                     value={photoCodeInput}
                     onChange={(e) => setPhotoCodeInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm font-mono"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                   />
                 </div>
                 <div>
@@ -292,7 +309,7 @@ export default function PledgeDetailPage() {
                     required
                     value={photoElementsInput}
                     onChange={(e) => setPhotoElementsInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                   />
                 </div>
               </div>
@@ -301,7 +318,7 @@ export default function PledgeDetailPage() {
             <button
               type="submit"
               disabled={submittingProof}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {submittingProof ? (
                 <>
@@ -314,15 +331,15 @@ export default function PledgeDetailPage() {
             </button>
           </form>
 
-          {/* 5-minute Grace Cancellation */}
+          {/* 5-minute Grace Cancellation Action */}
           {canCancel && (
-            <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
-              <span>Mistyped your stake? Cancel within 5 minutes of activation:</span>
+            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs text-slate-500">
+              <span>Mistyped your commitment stake? Cancel within 5 minutes of activation:</span>
               <button
                 type="button"
                 onClick={handleGraceCancel}
                 disabled={cancelling}
-                className="px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 border border-red-200 hover:bg-red-50 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-rose-800 border border-rose-200 bg-rose-50 rounded-lg transition-colors"
               >
                 {cancelling ? 'Cancelling...' : '5-Min Grace Cancel'}
               </button>
@@ -331,17 +348,17 @@ export default function PledgeDetailPage() {
         </div>
       )}
 
-      {/* Direct Friend Appeal / Referee Link Card (for testing & verification) */}
-      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <p className="text-xs font-bold text-slate-700 uppercase">Friend Referee Magic Link</p>
+      {/* Referee Appeal Console Link Banner */}
+      <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="space-y-0.5">
+          <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">Friend Referee Authority</p>
           <p className="text-xs text-slate-500">
-            For demonstration and appeal resolution, use the direct referee token link:
+            Designated referee: <strong className="text-slate-700">{pledge.referee_email}</strong> (24h appeal override)
           </p>
         </div>
         <Link
           href={`/referee/${pledge.id}`}
-          className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:border-indigo-500 text-xs font-semibold rounded-lg shadow-sm"
+          className="px-4 py-2 bg-white border border-slate-200 hover:border-indigo-400 text-slate-800 hover:text-indigo-600 text-xs font-bold rounded-xl shadow-sm transition-colors"
         >
           Open Friend Referee Review Screen →
         </Link>

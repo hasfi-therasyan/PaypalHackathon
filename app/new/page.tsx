@@ -8,7 +8,7 @@ export default function CreatePledgePage() {
   const router = useRouter();
 
   const [goalType, setGoalType] = useState<'github' | 'photo'>('github');
-  const [goalTitle, setGoalTitle] = useState('Ship Full Hackathon App MVP');
+  const [goalTitle, setGoalTitle] = useState('Ship Next.js Hackathon API & Auth');
   const [stakeDollars, setStakeDollars] = useState(25);
   const [sprintHours, setSprintHours] = useState(48);
 
@@ -92,7 +92,6 @@ export default function CreatePledgePage() {
         throw new Error(data.error || 'Failed to create pledge.');
       }
 
-      // Redirect directly to PayPal hold authorization page
       router.push(`/pledges/${data.id}/approve`);
     } catch (err: any) {
       setErrorMessage(err.message || 'Network error occurred. Please try again.');
@@ -101,79 +100,90 @@ export default function CreatePledgePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6">
-      <div className="mb-6">
-        <Link href="/" className="text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-          ← Back to Dashboard
-        </Link>
+    <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <Link href="/" className="hover:text-slate-800">Dashboard</Link>
+        <span>/</span>
+        <span className="text-slate-800 font-semibold">New Commitment Pledge</span>
       </div>
 
-      <div className="text-center mb-8">
+      <div className="text-center pb-2">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Create Commitment Pledge</h1>
-        <p className="text-sm text-slate-500 mt-2">
-          Lock verifiable rules, set your PayPal sandbox hold, and assign your friend referee.
+        <p className="text-sm text-slate-500 mt-1 max-w-lg mx-auto">
+          Define your verifiable rubric, set your PayPal sandbox hold, and assign your friend referee.
         </p>
       </div>
 
       {errorMessage && (
-        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-          <strong>Error:</strong> {errorMessage}
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800 flex items-start gap-2">
+          <span className="font-bold">Error:</span>
+          <span>{errorMessage}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-8 bg-white p-6 sm:p-8 rounded-xl border border-slate-200 shadow-sm">
-        {/* Step 1: Goal Type & Title */}
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            1. Goal Specification
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <label
-              className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${
-                goalType === 'github' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="goalType"
-                value="github"
-                checked={goalType === 'github'}
-                onChange={() => setGoalType('github')}
-                className="mt-1 mr-3 text-indigo-600 focus:ring-indigo-500"
-              />
-              <div>
-                <p className="font-semibold text-sm text-slate-900">GitHub Activity</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Verifies repo commits, distinct days & line counts via REST API (merge commits dropped).
-                </p>
-              </div>
-            </label>
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-8">
+        {/* Step 1: Goal Specification */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">1</span>
+            <h2 className="text-base font-bold text-slate-900">Select Goal Verification Type</h2>
+          </div>
 
-            <label
-              className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${
-                goalType === 'photo' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200 hover:bg-slate-50'
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div
+              onClick={() => setGoalType('github')}
+              className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                goalType === 'github'
+                  ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
               }`}
             >
-              <input
-                type="radio"
-                name="goalType"
-                value="photo"
-                checked={goalType === 'photo'}
-                onChange={() => setGoalType('photo')}
-                className="mt-1 mr-3 text-indigo-600 focus:ring-indigo-500"
-              />
-              <div>
-                <p className="font-semibold text-sm text-slate-900">Challenge-Code Photo</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Verifies written 3-word code (Levenshtein ≤ 1) and required physical scene elements.
-                </p>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                  </svg>
+                </div>
+                <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${goalType === 'github' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                  {goalType === 'github' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </span>
               </div>
-            </label>
+              <h3 className="font-bold text-sm text-slate-900">GitHub Activity</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Verifies author commits, distinct active UTC days, and lines changed via REST API. Drops merge commits and lockfiles.
+              </p>
+            </div>
+
+            <div
+              onClick={() => setGoalType('photo')}
+              className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                goalType === 'photo'
+                  ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${goalType === 'photo' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                  {goalType === 'photo' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </span>
+              </div>
+              <h3 className="font-bold text-sm text-slate-900">Challenge-Code Photo</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Verifies handwritten 3-word code (Levenshtein distance ≤ 1) and physical scene elements with confidence thresholds.
+              </p>
+            </div>
           </div>
 
           <div>
-            <label htmlFor="goalTitle" className="block text-sm font-medium text-slate-700 mb-1">
-              Pledge Goal Title
+            <label htmlFor="goalTitle" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Goal Pledge Title *
             </label>
             <input
               id="goalTitle"
@@ -181,20 +191,21 @@ export default function CreatePledgePage() {
               required
               value={goalTitle}
               onChange={(e) => setGoalTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm"
-              placeholder="e.g. Build PayPal Hackathon Project"
+              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+              placeholder="e.g. Finish Core PayPal API Integration"
             />
           </div>
         </div>
 
-        {/* Step 2: Rubric Form */}
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            2. Verifiable Rubric Rules
-          </h2>
+        {/* Step 2: Rubric Rules */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">2</span>
+            <h2 className="text-base font-bold text-slate-900">Locked Rubric Rules</h2>
+          </div>
 
           {goalType === 'github' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
                 <label htmlFor="repo" className="block text-xs font-semibold text-slate-700 mb-1">
                   GitHub Repository (owner/repo)
@@ -205,12 +216,12 @@ export default function CreatePledgePage() {
                   required
                   value={repo}
                   onChange={(e) => setRepo(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                 />
               </div>
               <div>
                 <label htmlFor="username" className="block text-xs font-semibold text-slate-700 mb-1">
-                  GitHub Username
+                  Author Username
                 </label>
                 <input
                   id="username"
@@ -218,7 +229,7 @@ export default function CreatePledgePage() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                 />
               </div>
               <div>
@@ -232,12 +243,12 @@ export default function CreatePledgePage() {
                   max={50}
                   value={minCommits}
                   onChange={(e) => setMinCommits(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
               </div>
               <div>
                 <label htmlFor="minDays" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Min Distinct Days
+                  Min Active Days
                 </label>
                 <input
                   id="minDays"
@@ -246,12 +257,12 @@ export default function CreatePledgePage() {
                   max={2}
                   value={minDays}
                   onChange={(e) => setMinDays(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
               </div>
               <div>
                 <label htmlFor="minLines" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Min Changed Lines
+                  Min Lines Changed
                 </label>
                 <input
                   id="minLines"
@@ -260,28 +271,28 @@ export default function CreatePledgePage() {
                   max={5000}
                   value={minLines}
                   onChange={(e) => setMinLines(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="sceneElements" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Required Scene Elements (comma-separated)
+                  Required Physical Elements (comma-separated)
                 </label>
                 <input
                   id="sceneElements"
                   type="text"
                   value={sceneElements}
                   onChange={(e) => setSceneElements(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
-                  placeholder="laptop, notebook, coffee"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  placeholder="laptop, notes, desk"
                 />
               </div>
               <div>
                 <label htmlFor="minConfidence" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Min Vision Confidence (0.5 - 1.0)
+                  Min Confidence Score (0.5 – 1.0)
                 </label>
                 <input
                   id="minConfidence"
@@ -291,34 +302,43 @@ export default function CreatePledgePage() {
                   max={1.0}
                   value={minConfidence}
                   onChange={(e) => setMinConfidence(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
               </div>
             </div>
           )}
 
-          {/* Locked Rubric JSON Preview */}
-          <div className="mt-4 p-4 bg-slate-900 rounded-lg text-slate-100 font-mono text-xs">
-            <div className="flex justify-between items-center text-slate-400 mb-2 border-b border-slate-700 pb-1">
-              <span>Locked Rubric JSON Preview</span>
-              <span className="text-emerald-400 font-semibold">🔒 Frozen with SHA-256 upon creation</span>
+          {/* Locked Rubric JSON Preview with SHA-256 Badge */}
+          <div className="p-4 bg-slate-900 rounded-xl text-slate-100 font-mono text-xs space-y-2">
+            <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-1.5">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                Deterministic Rubric Canonical JSON
+              </span>
+              <span className="text-[11px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                🔒 SHA-256 Sealed at Creation
+              </span>
             </div>
-            <pre className="overflow-x-auto">{canonicalJsonString}</pre>
+            <pre className="text-slate-300 overflow-x-auto text-[11px] leading-relaxed">
+              {canonicalJsonString}
+            </pre>
           </div>
         </div>
 
-        {/* Step 3: Stake Slider & Duration (Hard Limits Enforced) */}
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            3. Stake & Honor Period
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* Step 3: Stake Slider & Honor Period */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">3</span>
+            <h2 className="text-base font-bold text-slate-900">Stake Hold Amount & Honor Period</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5 bg-slate-50 border border-slate-200/80 rounded-xl">
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label htmlFor="stakeSlider" className="text-sm font-semibold text-slate-700">
-                  Stake Amount ($5 - $50 USD limit)
+                <label htmlFor="stakeSlider" className="text-xs font-bold uppercase text-slate-700">
+                  Stake Amount ($5 – $50 USD Limit)
                 </label>
-                <span className="text-base font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                <span className="text-base font-extrabold text-indigo-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
                   {formattedStake}
                 </span>
               </div>
@@ -330,9 +350,9 @@ export default function CreatePledgePage() {
                 step={1}
                 value={stakeDollars}
                 onChange={(e) => setStakeDollars(Number(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-2"
               />
-              <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-mono">
                 <span>$5.00 min</span>
                 <span>$50.00 max (hard cap)</span>
               </div>
@@ -340,10 +360,12 @@ export default function CreatePledgePage() {
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label htmlFor="sprintHours" className="text-sm font-semibold text-slate-700">
-                  Sprint Duration (Max 48 hours)
+                <label htmlFor="sprintHours" className="text-xs font-bold uppercase text-slate-700">
+                  Sprint Duration (Max 48h)
                 </label>
-                <span className="text-sm font-bold text-slate-700">{sprintHours} Hours</span>
+                <span className="text-sm font-bold text-slate-800 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
+                  {sprintHours} Hours
+                </span>
               </div>
               <input
                 id="sprintHours"
@@ -353,22 +375,24 @@ export default function CreatePledgePage() {
                 step={6}
                 value={sprintHours}
                 onChange={(e) => setSprintHours(Number(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-2"
               />
-              <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-mono">
                 <span>6h</span>
-                <span>48h (PayPal 3-day honor period compliant)</span>
+                <span>48h (PayPal honor window compliant)</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Step 4: Beneficiary & Friend Referee */}
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            4. Beneficiary & Friend Referee
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">4</span>
+            <h2 className="text-base font-bold text-slate-900">Beneficiary & Friend Referee</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label htmlFor="beneficiaryName" className="block text-xs font-semibold text-slate-700 mb-1">
                 Beneficiary Name
@@ -379,7 +403,7 @@ export default function CreatePledgePage() {
                 required
                 value={beneficiaryName}
                 onChange={(e) => setBeneficiaryName(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>
             <div>
@@ -392,7 +416,7 @@ export default function CreatePledgePage() {
                 required
                 value={beneficiaryEmail}
                 onChange={(e) => setBeneficiaryEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>
             <div>
@@ -405,28 +429,28 @@ export default function CreatePledgePage() {
                 required
                 value={refereeEmail}
                 onChange={(e) => setRefereeEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>
           </div>
         </div>
 
-        {/* Dynamic Consent Line */}
-        <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-lg">
-          <p className="text-sm font-semibold text-amber-900 text-center">
-            &ldquo;If I fail, <span className="underline decoration-amber-500 font-bold">{formattedStake}</span> goes to {beneficiaryName} ({beneficiaryEmail}).&rdquo;
+        {/* Dynamic Legal Consent Banner */}
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+          <p className="text-sm font-semibold text-amber-950 text-center">
+            &ldquo;If I fail, <span className="font-extrabold text-amber-900 underline decoration-amber-400">{formattedStake}</span> goes to {beneficiaryName}.&rdquo;
           </p>
-          <p className="text-xs text-amber-700 text-center mt-1">
-            PayPal authorization places a hold only — no funds transfer unless the sprint is forfeited.
+          <p className="text-xs text-amber-800 text-center">
+            PayPal authorization hold reserves the funds without immediate capture. You can cancel within 5 minutes of activation.
           </p>
         </div>
 
-        {/* Submit Button with Loading State */}
-        <div className="pt-2">
+        {/* Action Button */}
+        <div>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>

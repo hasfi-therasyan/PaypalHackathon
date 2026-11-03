@@ -113,3 +113,4 @@ export async function verifyChain(pledgeId: string): Promise<{
 
   return { valid: true, brokenSeq: null, totalEvents: events.length, events };
 }
+
