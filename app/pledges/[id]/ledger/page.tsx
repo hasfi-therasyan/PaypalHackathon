@@ -31,13 +31,22 @@ export default function LedgerTimelinePage() {
   }, [pledgeId]);
 
   async function handleSimulateTamper() {
-    if (!confirm('This will modify a ledger row in memory to simulate an unauthorized database mutation and test SHA-256 chain invalidation. Continue?')) {
+    if (!confirm('This will SIMULATE an unauthorized database mutation and demonstrate how SHA-256 chain verification instantly detects the forgery. The real Supabase append-only trigger prevents actual tampering. Continue?')) {
       return;
     }
     setTampering(true);
     try {
-      await fetch(`/api/ledger/${pledgeId}/tamper`, { method: 'POST' });
-      await loadLedger();
+      const res = await fetch(`/api/ledger/${pledgeId}/tamper`, { method: 'POST' });
+      const tamperResult = await res.json();
+      // Inject the simulated tampered verification result into our local state
+      if (tamperResult.verification) {
+        setData((prev: any) => ({
+          ...prev,
+          ledger: tamperResult.verification,
+          tamperNote: tamperResult.note,
+          tamperMessage: tamperResult.message,
+        }));
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -72,6 +81,8 @@ export default function LedgerTimelinePage() {
   const isChainValid = ledger?.valid ?? true;
   const brokenSeq = ledger?.brokenSeq;
   const events = ledger?.events || [];
+  const tamperNote = data?.tamperNote;
+  const tamperMessage = data?.tamperMessage;
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
@@ -106,6 +117,14 @@ export default function LedgerTimelinePage() {
           </Link>
         </div>
       </div>
+
+      {/* Tamper simulation result banner */}
+      {tamperMessage && (
+        <div className={`p-4 rounded-2xl border text-xs font-mono space-y-2 ${!isChainValid ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
+          <p className="font-bold">{tamperMessage}</p>
+          {tamperNote && <p className="text-slate-400 text-[11px]">{tamperNote}</p>}
+        </div>
+      )}
 
       {/* Cryptographic Spec & Tamper Test Action */}
       <div className="p-5 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs font-mono shadow-xl">

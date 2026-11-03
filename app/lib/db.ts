@@ -208,6 +208,7 @@ export const db = {
     },
 
     async tamperEvent(pledgeId: string, seq: number, fakePayload: Record<string, any>): Promise<void> {
+      // Only updates in-memory store (Supabase append-only trigger prevents DB tampering by design)
       const list = memoryStore.ledgerEvents.get(pledgeId) || [];
       const ev = list.find((e) => e.seq === seq);
       if (ev) {
