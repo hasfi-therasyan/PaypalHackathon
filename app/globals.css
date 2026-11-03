@@ -3,104 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --bg-main: #090d16;
-  --bg-card: #0f172a;
-  --bg-card-hover: #1e293b;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-active: rgba(99, 102, 241, 0.5);
-  --accent-primary: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.25);
-  --text-main: #f8fafc;
-  --text-dim: #94a3b8;
-  --text-muted: #64748b;
+  /* Hallmark System Tokens: PayPal Enterprise Ledger Theme */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  --bg-page: #f6f8fb;
+  --bg-card: #ffffff;
+  --bg-subtle: #edf2f7;
+  
+  --border-card: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-active: #0070ba;
+  
+  --text-primary: #0b192c;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  
+  --paypal-navy: #002244;
+  --paypal-blue: #0070ba;
+  --paypal-dark-blue: #003087;
+  --paypal-soft-blue: #eef6fc;
+  
+  --state-success: #0d7a53;
+  --state-success-bg: #eafbf3;
+  --state-warning: #9a4d00;
+  --state-warning-bg: #fff8eb;
+  --state-danger: #b91c1c;
+  --state-danger-bg: #fef2f2;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: var(--text-main);
-  background-color: var(--bg-main);
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
-    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 32px 32px;
-  min-height: 100vh;
+/* Hallmark Floor: Layout safeguards */
+html, body {
+  overflow-x: clip;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Typography scale with high-contrast precision */
-h1, h2, h3, h4, h5 {
-  color: #ffffff;
-  letter-spacing: -0.03em;
-  font-weight: 800;
+* {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
 }
 
-h1 { font-size: 2.5rem; line-height: 1.15; }
-h2 { font-size: 1.5rem; line-height: 1.25; }
-h3 { font-size: 1.125rem; line-height: 1.35; }
-
-p {
-  color: var(--text-dim);
+/* Hallmark Floor: Accessible Focus & Motion */
+:focus-visible {
+  outline: 2px solid var(--paypal-blue);
+  outline-offset: 2px;
 }
 
-@layer components {
-  .glass-card {
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1rem;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-  }
-
-  .glass-card:hover {
-    border-color: rgba(99, 102, 241, 0.3);
-  }
-
-  .glow-border {
-    position: relative;
-  }
-
-  .glow-border::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.4), rgba(16, 185, 129, 0.2), transparent);
-    border-radius: inherit;
-    z-index: -1;
-    pointer-events: none;
-  }
-
-  .btn-accent {
-    @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/30 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50;
-  }
-
-  .btn-ghost {
-    @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold rounded-xl border border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-800 hover:text-white transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50;
-  }
-
-  .input-field {
-    @apply w-full px-3.5 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #090d16;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+/* Financial Tabular Numbers */
+.font-tabular {
+  font-variant-numeric: tabular-nums;
 }

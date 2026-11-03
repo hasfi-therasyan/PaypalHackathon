@@ -6,11 +6,11 @@ import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/
 import { generateChallengeCode } from '@/app/lib/referee/photo';
 
 const MAX_STAKE_CENTS = 5000; // $50.00 USD hard limit
-const MIN_STAKE_CENTS = 500;  // $5.00 USD minimum
+const MIN_STAKE_CENTS = 0;     // $0.00 USD minimum as requested by user
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
 
 const CreatePledgeSchema = z.object({
-  goal_type: z.enum(['github', 'photo']),
+  goal_type: z.string().min(1, 'Goal type is required'),
   goal_title: z.string().min(3, 'Goal title must be at least 3 characters'),
   rubric_json: z.record(z.any()),
   stake_cents: z.number().int().min(MIN_STAKE_CENTS).max(MAX_STAKE_CENTS),
@@ -18,6 +18,7 @@ const CreatePledgeSchema = z.object({
   beneficiary_paypal_email: z.string().email('Valid beneficiary PayPal email required'),
   referee_email: z.string().email('Valid referee email required'),
   sprint_hours: z.number().int().min(1).max(MAX_SPRINT_HOURS).default(48),
+  user_email: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -51,9 +52,9 @@ export async function POST(request: NextRequest) {
 
     const pledgeRecord: PledgeRecord = {
       id: pledgeId,
-      user_id: 'user_hasfi',
+      user_id: body.user_email || 'hasfi@personal.example.com',
       title: body.goal_title,
-      goal_type: body.goal_type,
+      goal_type: body.goal_type as any,
       rubric_json: rubricToLock,
       rubric_hash: rubricHash,
       stake_cents: body.stake_cents,
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
       goal_type: body.goal_type,
       stake_cents: body.stake_cents,
       beneficiary: body.beneficiary_name,
+      referee: body.referee_email,
     });
 
     await appendLedgerEvent(pledgeId, LEDGER_EVENT_TYPES.RUBRIC_LOCKED, {

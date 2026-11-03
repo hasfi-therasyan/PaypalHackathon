@@ -3,13 +3,17 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
 
 export default function CreatePledgePage() {
   const router = useRouter();
+  const { user } = useAuth();
 
-  const [goalType, setGoalType] = useState<'github' | 'photo'>('github');
+  // All custom goal categories supported
+  const [goalCategory, setGoalCategory] = useState<'coding' | 'fitness' | 'study' | 'custom'>('coding');
+  const [goalType, setGoalType] = useState<'github' | 'photo' | 'custom'>('github');
   const [goalTitle, setGoalTitle] = useState('Ship Next.js Hackathon API & Auth');
-  const [stakeDollars, setStakeDollars] = useState(25);
+  const [stakeDollars, setStakeDollars] = useState(0); // Minimum $0 as requested
   const [sprintHours, setSprintHours] = useState(48);
 
   // GitHub rubric fields
@@ -19,9 +23,10 @@ export default function CreatePledgePage() {
   const [minDays, setMinDays] = useState(2);
   const [minLines, setMinLines] = useState(100);
 
-  // Photo rubric fields
+  // Photo & General rubric fields
   const [sceneElements, setSceneElements] = useState('laptop, code editor, desk');
   const [minConfidence, setMinConfidence] = useState(0.8);
+  const [customMilestones, setCustomMilestones] = useState('1. Deploy frontend\n2. Complete referee review');
 
   // Counterparty fields
   const [beneficiaryName, setBeneficiaryName] = useState('Sam Rivera');
@@ -31,10 +36,31 @@ export default function CreatePledgePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Sync category changes
+  const handleCategorySelect = (cat: 'coding' | 'fitness' | 'study' | 'custom') => {
+    setGoalCategory(cat);
+    if (cat === 'coding') {
+      setGoalType('github');
+      setGoalTitle('Ship Next.js Hackathon API & Auth');
+    } else if (cat === 'fitness') {
+      setGoalType('photo');
+      setGoalTitle('Morning Gym Workout Consistency');
+      setSceneElements('gym, fitness equipment, workout space');
+    } else if (cat === 'study') {
+      setGoalType('photo');
+      setGoalTitle('Read 2 Chapters & Complete Practice Exam');
+      setSceneElements('book, study desk, notebook');
+    } else {
+      setGoalType('custom');
+      setGoalTitle('Custom Personal Sprint Milestone');
+    }
+  };
+
   // Construct rubric JSON object
   const rubricJson = useMemo(() => {
     if (goalType === 'github') {
       return {
+        category: goalCategory,
         type: 'github',
         repo,
         username,
@@ -43,28 +69,25 @@ export default function CreatePledgePage() {
         min_changed_lines: Number(minLines),
         ignore_paths: ['package-lock.json', '*.lock', 'dist/**'],
       };
-    } else {
+    } else if (goalType === 'photo') {
       return {
+        category: goalCategory,
         type: 'photo',
         challenge_code_format: 'three-words-plus-digits',
         required_scene_elements: sceneElements.split(',').map((s) => s.trim()).filter(Boolean),
         min_confidence: Number(minConfidence),
       };
+    } else {
+      return {
+        category: goalCategory,
+        type: 'custom',
+        milestones: customMilestones.split('\n').filter(Boolean),
+        referee_confirmation_required: true,
+      };
     }
-  }, [goalType, repo, username, minCommits, minDays, minLines, sceneElements, minConfidence]);
+  }, [goalCategory, goalType, repo, username, minCommits, minDays, minLines, sceneElements, minConfidence, customMilestones]);
 
-  // Compute canonical JSON string for preview
-  const canonicalJsonString = useMemo(() => {
-    const sortedKeys = Object.keys(rubricJson).sort();
-    const sortedObj: Record<string, any> = {};
-    for (const k of sortedKeys) {
-      sortedObj[k] = (rubricJson as any)[k];
-    }
-    return JSON.stringify(sortedObj, null, 2);
-  }, [rubricJson]);
-
-  const stakeCents = stakeDollars * 100;
-  const formattedStake = `${stakeDollars.toFixed(2)} USD (sandbox)`;
+  const stakeCents = Math.round(stakeDollars * 100);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,383 +107,256 @@ export default function CreatePledgePage() {
           beneficiary_name: beneficiaryName,
           beneficiary_paypal_email: beneficiaryEmail,
           referee_email: refereeEmail,
+          user_email: user?.email,
         }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create pledge.');
+        throw new Error(data.error || 'Failed to create commitment.');
       }
 
-      router.push(`/pledges/${data.id}/approve`);
+      // If stake is $0 or greater, proceed to authorization or details
+      if (stakeCents === 0) {
+        router.push(`/pledges/${data.id}`);
+      } else {
+        router.push(`/pledges/new/checkout/${data.id}`);
+      }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Network error occurred. Please try again.');
+      setErrorMessage(err.message || 'Error occurred. Please try again.');
       setIsSubmitting(false);
     }
   }
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-xs text-slate-400">
-        <Link href="/" className="hover:text-white transition-colors">Dashboard</Link>
-        <span>/</span>
-        <span className="text-white font-semibold">New Commitment Contract</span>
-      </div>
-
-      <div className="text-center pb-2">
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">Create Commitment Pledge</h1>
-        <p className="text-xs text-slate-400 mt-1 max-w-lg mx-auto">
-          Define verifiable rules, place a PayPal sandbox hold, and assign your friend referee.
+      {/* Header */}
+      <div className="border-b border-slate-200 pb-4">
+        <Link href="/" className="text-xs font-semibold text-[#0070ba] hover:underline mb-2 inline-block">
+          ← Return to Dashboard
+        </Link>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#003087]">
+          Create a New Commitment Pledge
+        </h1>
+        <p className="text-xs text-slate-500 mt-1">
+          Lock in your goal with verifiable rubric criteria and assign a referee to hold you accountable.
         </p>
       </div>
 
       {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2">
-          <span className="font-bold">Error:</span>
-          <span>{errorMessage}</span>
+        <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-medium">
+          {errorMessage}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-xl p-6 sm:p-8 space-y-8 backdrop-blur-md">
-        {/* Step 1: Goal Specification */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">1</span>
-            <h2 className="text-base font-bold text-white">Select Goal Verification Type</h2>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Step 1: Goal Category */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900">1. Select Goal Category</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {[
+              { id: 'coding', label: '💻 Coding / GitHub', desc: 'Commits & code lines' },
+              { id: 'fitness', label: '🏋️ Fitness / Health', desc: 'Workout photo proof' },
+              { id: 'study', label: '📚 Study / Reading', desc: 'Milestone & notes' },
+              { id: 'custom', label: '✨ Custom Goal', desc: 'Any habit or pledge' },
+            ].map((cat) => (
+              <button
+                type="button"
+                key={cat.id}
+                onClick={() => handleCategorySelect(cat.id as any)}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  goalCategory === cat.id
+                    ? 'border-[#0070ba] bg-blue-50/70 text-[#003087] ring-1 ring-[#0070ba]'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <span className="font-bold text-xs block">{cat.label}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">{cat.desc}</span>
+              </button>
+            ))}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div
-              onClick={() => setGoalType('github')}
-              className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                goalType === 'github'
-                  ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
-                  : 'border-slate-800 hover:border-slate-700 bg-slate-950/60'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                  </svg>
-                </div>
-                <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${goalType === 'github' ? 'border-indigo-400 bg-indigo-500' : 'border-slate-700'}`}>
-                  {goalType === 'github' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </span>
-              </div>
-              <h3 className="font-bold text-sm text-white">GitHub Activity</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Evaluates author commits, active UTC days, and changed lines via REST API. Merge commits and lockfiles dropped.
-              </p>
-            </div>
-
-            <div
-              onClick={() => setGoalType('photo')}
-              className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                goalType === 'photo'
-                  ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
-                  : 'border-slate-800 hover:border-slate-700 bg-slate-950/60'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${goalType === 'photo' ? 'border-indigo-400 bg-indigo-500' : 'border-slate-700'}`}>
-                  {goalType === 'photo' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </span>
-              </div>
-              <h3 className="font-bold text-sm text-white">Challenge-Code Photo</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Verifies handwritten 3-word code (Levenshtein distance ≤ 1) and physical scene elements with confidence thresholds.
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="goalTitle" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-              Goal Pledge Title *
-            </label>
+          <div className="space-y-1.5 pt-2">
+            <label className="text-xs font-bold text-slate-700">Goal Commitment Title</label>
             <input
-              id="goalTitle"
               type="text"
-              required
               value={goalTitle}
               onChange={(e) => setGoalTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-700 rounded-xl text-white text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-              placeholder="e.g. Finish Core PayPal API Integration"
+              required
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 bg-white focus:outline-hidden focus:border-[#0070ba]"
+              placeholder="e.g. Complete 5 LeetCode problems & deploy MVP"
             />
           </div>
         </div>
 
-        {/* Step 2: Locked Rubric Rules */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">2</span>
-            <h2 className="text-base font-bold text-white">Locked Rubric Rules</h2>
-          </div>
+        {/* Step 2: Verification Rubric */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900">2. Verification Rubric</h2>
 
-          {goalType === 'github' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <label htmlFor="repo" className="block text-xs font-semibold text-slate-300 mb-1">
-                  GitHub Repository (owner/repo)
-                </label>
+          {goalType === 'github' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">GitHub Repository (owner/repo)</label>
                 <input
-                  id="repo"
                   type="text"
-                  required
                   value={repo}
                   onChange={(e) => setRepo(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm font-mono text-white"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
                 />
               </div>
-              <div>
-                <label htmlFor="username" className="block text-xs font-semibold text-slate-300 mb-1">
-                  Author Username
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">GitHub Username</label>
                 <input
-                  id="username"
                   type="text"
-                  required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm font-mono text-white"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
                 />
               </div>
-              <div>
-                <label htmlFor="minCommits" className="block text-xs font-semibold text-slate-300 mb-1">
-                  Min Commits
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Minimum Commits</label>
                 <input
-                  id="minCommits"
                   type="number"
-                  min={1}
-                  max={50}
+                  min="1"
                   value={minCommits}
                   onChange={(e) => setMinCommits(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
                 />
               </div>
-              <div>
-                <label htmlFor="minDays" className="block text-xs font-semibold text-slate-300 mb-1">
-                  Min Active Days
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Minimum Distinct Days Active</label>
                 <input
-                  id="minDays"
                   type="number"
-                  min={1}
-                  max={2}
+                  min="1"
+                  max="7"
                   value={minDays}
                   onChange={(e) => setMinDays(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
-                />
-              </div>
-              <div>
-                <label htmlFor="minLines" className="block text-xs font-semibold text-slate-300 mb-1">
-                  Min Changed Lines
-                </label>
-                <input
-                  id="minLines"
-                  type="number"
-                  min={10}
-                  max={5000}
-                  value={minLines}
-                  onChange={(e) => setMinLines(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="sceneElements" className="block text-xs font-semibold text-slate-300 mb-1">
-                  Required Physical Elements (comma-separated)
-                </label>
-                <input
-                  id="sceneElements"
-                  type="text"
-                  value={sceneElements}
-                  onChange={(e) => setSceneElements(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
-                />
-              </div>
-              <div>
-                <label htmlFor="minConfidence" className="block text-xs font-semibold text-slate-300 mb-1">
-                  Min Confidence Score (0.5 – 1.0)
-                </label>
-                <input
-                  id="minConfidence"
-                  type="number"
-                  step={0.05}
-                  min={0.5}
-                  max={1.0}
-                  value={minConfidence}
-                  onChange={(e) => setMinConfidence(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
                 />
               </div>
             </div>
           )}
 
-          {/* Locked Rubric JSON Preview with SHA-256 Badge */}
-          <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs space-y-2">
-            <div className="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-1.5">
-              <span className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                Deterministic Rubric Canonical JSON
-              </span>
-              <span className="text-[11px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                🔒 SHA-256 Sealed at Creation
-              </span>
+          {goalType === 'photo' && (
+            <div className="space-y-3 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Required Scene Elements (comma-separated)</label>
+                <input
+                  type="text"
+                  value={sceneElements}
+                  onChange={(e) => setSceneElements(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
+                  placeholder="e.g. gym, fitness equipment, timer"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                A 3-word challenge code will be generated upon rubric lock. You will present the code inside your photo proof.
+              </p>
             </div>
-            <pre className="text-slate-300 overflow-x-auto text-[11px] leading-relaxed">
-              {canonicalJsonString}
-            </pre>
-          </div>
+          )}
+
+          {goalType === 'custom' && (
+            <div className="space-y-1 text-xs">
+              <label className="font-bold text-slate-700">Custom Milestone Deliverables</label>
+              <textarea
+                value={customMilestones}
+                onChange={(e) => setCustomMilestones(e.target.value)}
+                rows={3}
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
+                placeholder="List your specific goals..."
+              />
+            </div>
+          )}
         </div>
 
-        {/* Step 3: Stake Slider & Honor Period */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">3</span>
-            <h2 className="text-base font-bold text-white">Stake Hold Amount & Honor Period</h2>
-          </div>
+        {/* Step 3: Stake & Sprint Duration */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900">3. Stake Amount & Sprint Window</h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5 bg-slate-950/80 border border-slate-800 rounded-xl">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="stakeSlider" className="text-xs font-bold uppercase text-slate-400">
-                  Stake Amount ($5 – $50 USD Limit)
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-700">
+                  Stake Amount ($0 to $50 USD)
                 </label>
-                <span className="text-base font-extrabold font-mono text-indigo-400 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
-                  {formattedStake}
+                <span className="font-mono text-sm font-black text-[#003087]">
+                  ${stakeDollars.toFixed(2)} USD
                 </span>
               </div>
               <input
-                id="stakeSlider"
                 type="range"
-                min={5}
-                max={50}
-                step={1}
+                min="0"
+                max="50"
+                step="5"
                 value={stakeDollars}
                 onChange={(e) => setStakeDollars(Number(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 mt-2"
+                className="w-full h-2 bg-slate-200 rounded-lg cursor-pointer accent-[#0070ba]"
               />
-              <div className="flex justify-between text-[11px] text-slate-500 mt-1 font-mono">
-                <span>$5.00 min</span>
-                <span>$50.00 max (hard cap)</span>
-              </div>
+              <span className="text-[11px] text-slate-500 block">
+                {stakeDollars === 0
+                  ? 'Zero-risk mode ($0.00). No PayPal hold required.'
+                  : 'Protected by PayPal temporary authorization hold.'}
+              </span>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="sprintHours" className="text-xs font-bold uppercase text-slate-400">
-                  Sprint Duration (Max 48h)
-                </label>
-                <span className="text-sm font-bold font-mono text-white bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
-                  {sprintHours} Hours
-                </span>
-              </div>
-              <input
-                id="sprintHours"
-                type="range"
-                min={6}
-                max={48}
-                step={6}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Sprint Expiration Window</label>
+              <select
                 value={sprintHours}
                 onChange={(e) => setSprintHours(Number(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 mt-2"
-              />
-              <div className="flex justify-between text-[11px] text-slate-500 mt-1 font-mono">
-                <span>6h</span>
-                <span>48h (PayPal honor window compliant)</span>
-              </div>
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white"
+              >
+                <option value={12}>12 Hours (Quick Sprint)</option>
+                <option value={24}>24 Hours (Daily Goal)</option>
+                <option value={48}>48 Hours (Weekend / Hackathon Sprint)</option>
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Step 4: Beneficiary & Friend Referee */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">4</span>
-            <h2 className="text-base font-bold text-white">Beneficiary & Friend Referee</h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label htmlFor="beneficiaryName" className="block text-xs font-semibold text-slate-300 mb-1">
-                Beneficiary Name
-              </label>
+        {/* Step 4: Referee & Beneficiary */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900">4. Referee & Beneficiary</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">Friend Referee Email (Final Authority)</label>
               <input
-                id="beneficiaryName"
-                type="text"
-                required
-                value={beneficiaryName}
-                onChange={(e) => setBeneficiaryName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
-              />
-            </div>
-            <div>
-              <label htmlFor="beneficiaryEmail" className="block text-xs font-semibold text-slate-300 mb-1">
-                Beneficiary PayPal Email
-              </label>
-              <input
-                id="beneficiaryEmail"
                 type="email"
-                required
-                value={beneficiaryEmail}
-                onChange={(e) => setBeneficiaryEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
-              />
-            </div>
-            <div>
-              <label htmlFor="refereeEmail" className="block text-xs font-semibold text-slate-300 mb-1">
-                Friend Referee Email
-              </label>
-              <input
-                id="refereeEmail"
-                type="email"
-                required
                 value={refereeEmail}
                 onChange={(e) => setRefereeEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-lg text-sm text-white"
+                required
+                className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                placeholder="referee@example.com"
               />
+              <span className="text-[10px] text-slate-500 block">
+                If the automated referee is uncertain or borderline, your friend casts the final verdict.
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700">Beneficiary PayPal Email</label>
+              <input
+                type="email"
+                value={beneficiaryEmail}
+                onChange={(e) => setBeneficiaryEmail(e.target.value)}
+                required
+                className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                placeholder="beneficiary@personal.example.com"
+              />
+              <span className="text-[10px] text-slate-500 block">
+                Receives the payout only if the sprint commitment is failed or unfulfilled.
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Dynamic Legal Consent Banner */}
-        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
-          <p className="text-sm font-semibold text-amber-200 text-center">
-            &ldquo;If I fail, <span className="font-extrabold text-amber-400 underline decoration-amber-400/50">{formattedStake}</span> goes to {beneficiaryName}.&rdquo;
-          </p>
-          <p className="text-xs text-amber-300/80 text-center">
-            PayPal authorization hold reserves the funds without immediate capture. You can cancel within 5 minutes of activation.
-          </p>
-        </div>
-
-        {/* Action Button */}
-        <div>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-4 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 hover:scale-[1.01]"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Hashing Rubric & Initializing...</span>
-              </>
-            ) : (
-              <span>Proceed to PayPal Hold Authorization →</span>
-            )}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-3.5 bg-[#0070ba] hover:bg-[#003087] text-white font-bold rounded-xl text-sm transition-all shadow-xs disabled:opacity-50"
+        >
+          {isSubmitting ? 'Sealing Rubric & Initializing...' : 'Lock Rubric & Create Commitment →'}
+        </button>
       </form>
     </div>
   );

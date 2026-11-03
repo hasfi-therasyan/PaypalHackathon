@@ -1,60 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/app/lib/db';
+// app/api/pledges/[id]/authorize/route.ts
+import { NextResponse } from 'next/server';
 import { authorizeOrder } from '@/app/lib/paypal/orders';
-import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
-import { assertTransition } from '@/app/lib/state/transitions';
+import { db } from '@/app/lib/db';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+/**
+ * POST endpoint that receives a PayPal `orderId` after the user approves checkout.
+ * It authorizes the order via PayPal, stores the `authorizationId` on the pledge
+ * and updates the pledge status to `PLEDGE_AUTHORIZED`.
+ */
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const { orderId } = await request.json();
+  if (!orderId) {
+    return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
+  }
+
   try {
-    const pledge = await db.pledges.get(params.id);
-    if (!pledge) {
-      return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
-    }
-
-    const body = await request.json().catch(() => ({}));
-    const orderId = body.orderId || pledge.paypal_order_id;
-
-    if (!orderId) {
-      return NextResponse.json({ error: 'No PayPal order ID associated with this pledge.' }, { status: 400 });
-    }
-
-    assertTransition(pledge.status, 'ACTIVE');
-
-    // Authorize order via PayPal REST API
-    const authResult = await authorizeOrder(orderId, pledge.id);
-
-    // Update pledge status to ACTIVE and store authorization details
-    await db.pledges.update(pledge.id, {
-      status: 'ACTIVE',
-      paypal_authorization_id: authResult.authorizationId,
-      starts_at: new Date().toISOString(),
+    const result = await authorizeOrder(orderId, params.id);
+    await db.pledges.update(params.id, {
+      paypal_authorization_id: result.authorizationId,
+      status: 'PLEDGE_AUTHORIZED',
     });
-
-    // Record ledger event
-    await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_AUTHORIZED, {
-      authorizationId: authResult.authorizationId,
-      orderId,
-      captureLink: authResult.captureLink,
-      voidLink: authResult.voidLink,
-      amountCents: pledge.stake_cents,
-    });
-
-    return NextResponse.json({
-      success: true,
-      status: 'ACTIVE',
-      authorizationId: authResult.authorizationId,
-      captureLink: authResult.captureLink,
-      voidLink: authResult.voidLink,
-    });
-  } catch (error: any) {
-    console.error('Error authorizing PayPal hold:', error);
-    return NextResponse.json(
-      { error: error?.message || 'Failed to authorize hold' },
-      { status: 500 }
-    );
+    return NextResponse.json({ authorizationId: result.authorizationId, status: result.status });
+  } catch (err: any) {
+    console.error('Authorize order failed', err);
+    return NextResponse.json({ error: err.message }, { status: err.status || 500 });
   }
 }
-

@@ -13,6 +13,9 @@ interface TokenCache {
 let cachedToken: TokenCache | null = null;
 
 export async function getPayPalAccessToken(): Promise<string> {
+  // Existing client‑credentials flow – used for server‑to‑server calls (orders, captures, etc.)
+  // NOTE: This function is untouched; see below for a new helper handling the OAuth "authorization_code" grant.
+
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
 

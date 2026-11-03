@@ -7,12 +7,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        accent: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          500: '#4f46e5',
-          600: '#4338ca',
-          700: '#3730a3',
+        paypal: {
+          blue: '#0070ba',
+          dark: '#003087',
+          light: '#0079c1',
+          hover: '#005ea6',
+          gold: '#ffc439',
+          goldHover: '#f2ba36',
+          softBg: '#f5f9fc',
         },
       },
     },
