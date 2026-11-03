@@ -1,11 +1,15 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ogfbncbbfqzlbfjrsjfa.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_3oVknaFZ4X4eZU85vzx_pA_eZGJATrV';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false },
-});
+// No hardcoded fallback: without real creds, supabase client points nowhere
+// and every call below throws, so the in-memory fallback kicks in (demo-safe).
+export const supabase: SupabaseClient = createClient(
+  supabaseUrl || 'https://invalid.supabase.co',
+  supabaseKey || 'invalid',
+  { auth: { persistSession: false } }
+);
 
 export interface PledgeRecord {
   id: string;

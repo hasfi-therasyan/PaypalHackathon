@@ -1,37 +1,56 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+const successes = 6;
+const failures = 1;
+
 export default function ReliabilityStatsPage() {
-  const [sprintCount] = useState(7);
   const [comfortBudget, setComfortBudget] = useState(10); // Default 10 USD
+  const [posteriorMean, setPosteriorMean] = useState(0.807);
+  const [ci80Lower, setCi80Lower] = useState(0.69);
+  const [ci80Upper, setCi80Upper] = useState(0.91);
+  const [stakeCurve, setStakeCurve] = useState(
+    [5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((stake) => {
+      const pSuccess = Math.min(0.95, 0.65 + 0.005 * stake);
+      const expectedLoss = (1 - pSuccess) * stake;
+      return {
+        stake,
+        pSuccess: (pSuccess * 100).toFixed(1),
+        expectedLoss: expectedLoss.toFixed(2),
+        underBudget: expectedLoss <= comfortBudget,
+      };
+    })
+  );
 
-  // Beta distribution calculation for reliability score
-  // Prior: Alpha = 4.5, Beta = 1.5 (strength around 6 sprints)
-  // Likelihood: 6 successes, 1 failure in 7 sprints
-  const priorAlpha = 4.5;
-  const priorBeta = 1.5;
-  const successes = 6;
-  const failures = 1;
-  const postAlpha = priorAlpha + successes; // 10.5
-  const postBeta = priorBeta + failures;   // 2.5
-  const posteriorMean = postAlpha / (postAlpha + postBeta); // ~0.807 (80.7%)
-  const ci80Lower = 0.69;
-  const ci80Upper = 0.91;
-
-  // Stake curve grid from 5 to 50 USD
-  const stakeGrid = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-  const stakeCurve = stakeGrid.map((stake) => {
-    const pSuccess = Math.min(0.95, 0.65 + 0.005 * stake);
-    const expectedLoss = (1 - pSuccess) * stake;
-    return {
-      stake,
-      pSuccess: (pSuccess * 100).toFixed(1),
-      expectedLoss: expectedLoss.toFixed(2),
-      underBudget: expectedLoss <= comfortBudget,
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/stats/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ successes, failures, comfortBudgetCents: comfortBudget * 100 }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setPosteriorMean(data.posterior_mean);
+        setCi80Lower(data.ci80_lower);
+        setCi80Upper(data.ci80_upper);
+        setStakeCurve(
+          data.stake_curve.map((p: any) => ({
+            stake: p.stake_cents / 100,
+            pSuccess: (p.p_success * 100).toFixed(1),
+            expectedLoss: (p.expected_loss_cents / 100).toFixed(2),
+            underBudget: p.under_budget,
+          }))
+        );
+      })
+      .catch(() => {}); // keep mock values on failure
+    return () => {
+      cancelled = true;
     };
-  });
+  }, [comfortBudget]);
 
   const recommendedStake = stakeCurve.filter((s) => s.underBudget).pop() || stakeCurve[0];
 
