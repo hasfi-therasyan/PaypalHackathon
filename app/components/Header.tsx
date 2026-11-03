@@ -92,16 +92,21 @@ export function Header() {
 
           {/* Navigation Links based on Roles */}
           <nav className="flex items-center gap-1.5 sm:gap-2">
-            <Link href="/" className={navLinkClass('/')}>
-              {isActive('/') && <span className="w-1.5 h-1.5 rounded-full bg-[#0070ba]" />}
+            <Link href="/dashboard" className={navLinkClass('/dashboard')}>
+              {isActive('/dashboard') && <span className="w-1.5 h-1.5 rounded-full bg-[#0070ba]" />}
               My Commitments
             </Link>
 
-            {/* Referee Tab visible if user is referee or admin */}
-            {(user?.role === 'referee' || user?.role === 'admin') && (
+            {/* Referee Tab visible if user is admin, appointed referee role, OR dynamically assigned on an active pledge */}
+            {(user?.role === 'referee' || user?.role === 'admin' || user?.isRefereeAssigned) && (
               <Link href="/referee" className={navLinkClass('/referee', 'referee')}>
                 {isActive('/referee') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
                 <span>Referee Panel</span>
+                {user?.isRefereeAssigned && user?.role === 'user' && (
+                  <span className="text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded ml-1">
+                    ASSIGNED
+                  </span>
+                )}
               </Link>
             )}
 

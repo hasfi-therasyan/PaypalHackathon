@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 
 export default function AdminSuitePage() {
-  const { user } = useAuth();
+  const { user, usersList, assignRole } = useAuth();
   const [pledges, setPledges] = useState<any[]>([]);
   const [seeding, setSeeding] = useState(false);
   const [clockSpeed, setClockSpeed] = useState(60);
@@ -114,6 +114,58 @@ export default function AdminSuitePage() {
           </div>
         </div>
       </div>
+
+      {/* User Management & Role Verification */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 shadow-xs space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-base font-bold text-[#003087]">Registered Users & Role Assignment</h2>
+            <p className="text-xs text-slate-500">
+              Verify incoming accounts and dynamically promote or assign User, Referee, or Admin roles.
+            </p>
+          </div>
+          <span className="px-3 py-1 bg-blue-50 text-[#0070ba] font-bold text-xs rounded-full border border-blue-200">
+            {Object.keys(usersList || {}).length} Accounts
+          </span>
+        </div>
+
+        <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+          {Object.entries(usersList || {}).map(([emailKey, uData]) => (
+            <div key={emailKey} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-slate-50/60 transition-colors">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-slate-800">{uData.name}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                      uData.role === 'admin'
+                        ? 'bg-blue-100 text-[#003087]'
+                        : uData.role === 'referee'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {uData.role}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">{emailKey}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-500 font-medium">Assign:</span>
+                <select
+                  value={uData.role}
+                  onChange={(e) => assignRole(emailKey, e.target.value as any)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:border-[#0070ba]"
+                >
+                  <option value="user">User</option>
+                  <option value="referee">Referee</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Audit Trail & System Ledger Overview */}
       <section className="space-y-4">
