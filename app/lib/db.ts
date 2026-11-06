@@ -1,13 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const rawUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = rawUrl && rawUrl.startsWith('http') ? rawUrl : 'https://placeholder.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'placeholder_anon_key';
 
-// No hardcoded fallback: without real creds, supabase client points nowhere
-// and every call below throws, so the in-memory fallback kicks in (demo-safe).
+// Demo-safe Supabase client: if placeholder/invalid, calls fall back to memoryStore
 export const supabase: SupabaseClient = createClient(
-  supabaseUrl || 'https://invalid.supabase.co',
-  supabaseKey || 'invalid',
+  supabaseUrl,
+  supabaseKey,
   { auth: { persistSession: false } }
 );
 
