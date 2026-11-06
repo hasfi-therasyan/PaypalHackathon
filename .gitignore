@@ -21,4 +21,8 @@ Thumbs.db
 
 SKILL.MD
 HANDOFF.md
+<<<<<<< HEAD
+=======
+*.md    
+>>>>>>> 1b48a7a3185acba3481158af8a5206a32474b650
 *.tsbuildinfo
