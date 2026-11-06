@@ -5,6 +5,74 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 
+interface CharityOption {
+  id: string;
+  name: string;
+  tagline: string;
+  category: string;
+  email: string;
+  icon: string;
+}
+
+const VERIFIED_PAYPAL_CHARITIES: CharityOption[] = [
+  {
+    id: 'redcross',
+    name: 'American Red Cross',
+    tagline: 'Emergency disaster response, blood supply & humanitarian relief',
+    category: 'Disaster Relief',
+    email: 'sb-redcross@charity.paypal.com',
+    icon: '⛑️',
+  },
+  {
+    id: 'feedingamerica',
+    name: 'Feeding America',
+    tagline: 'Nationwide network of 200+ food banks combating hunger',
+    category: 'Hunger Relief',
+    email: 'sb-feedingamerica@charity.paypal.com',
+    icon: '🍲',
+  },
+  {
+    id: 'savethechildren',
+    name: 'Save the Children',
+    tagline: 'Healthcare, nutrition and education for vulnerable children',
+    category: 'Children & Education',
+    email: 'sb-savethechildren@charity.paypal.com',
+    icon: '🧸',
+  },
+  {
+    id: 'wikimedia',
+    name: 'Wikimedia Foundation',
+    tagline: 'Empowering free knowledge for Wikipedia & open projects',
+    category: 'Free Knowledge',
+    email: 'sb-wikimedia@charity.paypal.com',
+    icon: '🌐',
+  },
+  {
+    id: 'khanacademy',
+    name: 'Khan Academy',
+    tagline: 'Free, world-class education for anyone, anywhere',
+    category: 'Education',
+    email: 'sb-khanacademy@charity.paypal.com',
+    icon: '🎓',
+  },
+  {
+    id: 'wwf',
+    name: 'World Wildlife Fund (WWF)',
+    tagline: 'Wildlife conservation & environmental ecosystem protection',
+    category: 'Environment',
+    email: 'sb-wwf@charity.paypal.com',
+    icon: '🐼',
+  },
+  {
+    id: 'msf',
+    name: 'Doctors Without Borders (MSF)',
+    tagline: 'Neutral, impartial medical care in conflict & crisis zones',
+    category: 'Medical Aid',
+    email: 'sb-msf@charity.paypal.com',
+    icon: '🩺',
+  },
+];
+
 export default function CreatePledgePage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -29,9 +97,14 @@ export default function CreatePledgePage() {
   const [username, setUsername] = useState('hasfi');
   const [minCommits, setMinCommits] = useState(5);
 
+  // Beneficiary Configuration
+  type BeneficiaryType = 'charity' | 'friend' | 'custom';
+  const [beneficiaryType, setBeneficiaryType] = useState<BeneficiaryType>('charity');
+  const [selectedCharity, setSelectedCharity] = useState<CharityOption>(VERIFIED_PAYPAL_CHARITIES[0]);
+  const [beneficiaryName, setBeneficiaryName] = useState(VERIFIED_PAYPAL_CHARITIES[0].name);
+  const [beneficiaryEmail, setBeneficiaryEmail] = useState(VERIFIED_PAYPAL_CHARITIES[0].email);
+
   // Counterparty fields
-  const [beneficiaryName, setBeneficiaryName] = useState('Sam Rivera');
-  const [beneficiaryEmail, setBeneficiaryEmail] = useState('sb-sam@personal.example.com');
   const [refereeEmail, setRefereeEmail] = useState('referee@example.com');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,6 +142,27 @@ export default function CreatePledgePage() {
       setGoalTitle('My Personal Challenge Goal');
       setProofHint('Submit your milestone notes or photo proof for referee confirmation.');
     }
+  };
+
+  // Switch beneficiary type handler
+  const handleBeneficiaryTypeChange = (type: BeneficiaryType) => {
+    setBeneficiaryType(type);
+    if (type === 'charity') {
+      setBeneficiaryName(selectedCharity.name);
+      setBeneficiaryEmail(selectedCharity.email);
+    } else if (type === 'friend') {
+      setBeneficiaryName('Sam Rivera (Accountability Partner)');
+      setBeneficiaryEmail('sb-sam@personal.example.com');
+    } else {
+      setBeneficiaryName('');
+      setBeneficiaryEmail('');
+    }
+  };
+
+  const handleCharityChange = (charity: CharityOption) => {
+    setSelectedCharity(charity);
+    setBeneficiaryName(charity.name);
+    setBeneficiaryEmail(charity.email);
   };
 
   // Construct Rubric JSON
@@ -153,7 +247,7 @@ export default function CreatePledgePage() {
           Create a New Commitment
         </h1>
         <p className="text-xs text-slate-500 mt-1">
-          Pick your challenge, choose a safe stake, and invite a friend as your referee.
+          Pick your challenge, choose a safe stake, and designate a PayPal Giving Fund charity or friend.
         </p>
       </div>
 
@@ -239,7 +333,7 @@ export default function CreatePledgePage() {
                   placeholder="e.g. gym, workout weights, sneakers"
                 />
                 <span className="text-[11px] text-slate-400">
-                  Our AI vision model will check for these elements to confirm authenticity.
+                  Our AI referee model checks for these elements to confirm authentic completion.
                 </span>
               </div>
             </div>
@@ -346,13 +440,19 @@ export default function CreatePledgePage() {
           </div>
         </div>
 
-        {/* Step 4: Accountability & Beneficiary */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900">4. Referee &amp; Beneficiary</h2>
+        {/* Step 4: Accountability & Beneficiary (Charities & Friends) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+          <div className="flex justify-between items-center">
+            <h2 className="text-base font-bold text-slate-900">4. Referee &amp; Beneficiary</h2>
+            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+              PAYPAL GIVING FUND READY
+            </span>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div className="space-y-4 text-xs">
+            {/* Referee Email */}
             <div className="space-y-1">
-              <label className="font-bold text-slate-700">Friend Referee Email (Final Authority)</label>
+              <label className="font-bold text-slate-700">Friend Referee Email (Human Tribunal Appeal)</label>
               <input
                 type="email"
                 value={refereeEmail}
@@ -362,28 +462,152 @@ export default function CreatePledgePage() {
                 placeholder="friend@example.com"
               />
               <span className="text-[11px] text-slate-400">
-                Your friend gets a referee review link if automated verification is ever borderline.
+                Your referee can review and override the verdict if the AI finds edge-case proof.
               </span>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">Beneficiary if Forfeited</label>
-              <input
-                type="text"
-                value={beneficiaryName}
-                onChange={(e) => setBeneficiaryName(e.target.value)}
-                required
-                className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
-                placeholder="Charity or Friend Name"
-              />
-              <input
-                type="email"
-                value={beneficiaryEmail}
-                onChange={(e) => setBeneficiaryEmail(e.target.value)}
-                required
-                className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 mt-1 font-mono"
-                placeholder="sb-friend@personal.example.com"
-              />
+            {/* Beneficiary Type Selector */}
+            <div className="space-y-2 pt-1 border-t border-slate-100">
+              <label className="font-bold text-slate-900 block text-xs">
+                Where should the stake go if you forfeit?
+              </label>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleBeneficiaryTypeChange('charity')}
+                  className={`p-2.5 rounded-xl border text-center transition-all ${
+                    beneficiaryType === 'charity'
+                      ? 'border-[#0070ba] bg-blue-50 text-[#003087] font-bold ring-1 ring-[#0070ba]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="block text-base mb-0.5">🏛️</span>
+                  <span>Verified Charity</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBeneficiaryTypeChange('friend')}
+                  className={`p-2.5 rounded-xl border text-center transition-all ${
+                    beneficiaryType === 'friend'
+                      ? 'border-[#0070ba] bg-blue-50 text-[#003087] font-bold ring-1 ring-[#0070ba]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="block text-base mb-0.5">🤝</span>
+                  <span>Friend / Peer</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBeneficiaryTypeChange('custom')}
+                  className={`p-2.5 rounded-xl border text-center transition-all ${
+                    beneficiaryType === 'custom'
+                      ? 'border-[#0070ba] bg-blue-50 text-[#003087] font-bold ring-1 ring-[#0070ba]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="block text-base mb-0.5">✏️</span>
+                  <span>Custom Address</span>
+                </button>
+              </div>
+
+              {/* Charity Option List */}
+              {beneficiaryType === 'charity' && (
+                <div className="space-y-3 pt-2">
+                  <span className="text-[11px] text-slate-500 block">
+                    Choose from top non-profits enrolled in PayPal Giving Fund (100% of captured stake goes to charity):
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {VERIFIED_PAYPAL_CHARITIES.map((c) => (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => handleCharityChange(c)}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          selectedCharity.id === c.id
+                            ? 'border-[#0070ba] bg-blue-50/90 shadow-2xs ring-2 ring-[#0070ba]/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-xl shrink-0 mt-0.5">{c.icon}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 text-xs truncate">{c.name}</span>
+                              <span className="text-[9px] font-mono uppercase bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded border border-emerald-200">
+                                {c.category}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{c.tagline}</p>
+                            <span className="text-[9px] font-mono text-[#0070ba] block mt-1 truncate">
+                              PayPal: {c.email}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Friend Option */}
+              {beneficiaryType === 'friend' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Friend Name</label>
+                    <input
+                      type="text"
+                      value={beneficiaryName}
+                      onChange={(e) => setBeneficiaryName(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
+                      placeholder="e.g. Sam Rivera"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Friend's PayPal Sandbox Email</label>
+                    <input
+                      type="email"
+                      value={beneficiaryEmail}
+                      onChange={(e) => setBeneficiaryEmail(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                      placeholder="sb-sam@personal.example.com"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Beneficiary */}
+              {beneficiaryType === 'custom' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">Beneficiary Display Name</label>
+                    <input
+                      type="text"
+                      value={beneficiaryName}
+                      onChange={(e) => setBeneficiaryName(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
+                      placeholder="Custom organization or individual"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700">PayPal Recipient Email</label>
+                    <input
+                      type="email"
+                      value={beneficiaryEmail}
+                      onChange={(e) => setBeneficiaryEmail(e.target.value)}
+                      required
+                      className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                      placeholder="recipient@example.com"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -398,11 +622,7 @@ export default function CreatePledgePage() {
             {isSubmitting ? (
               <span>Locking In Rubric…</span>
             ) : (
-              <span>
-                {stakeDollars > 0
-                  ? `Lock Rubric & Continue to PayPal Hold ($${stakeDollars}.00) →`
-                  : 'Start Commitment Sprint (Free $0.00) →'}
-              </span>
+              <span>Lock In Commitment with PayPal &rarr;</span>
             )}
           </button>
         </div>
