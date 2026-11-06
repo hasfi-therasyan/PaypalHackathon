@@ -166,7 +166,7 @@ export function Header() {
               <span>+ New Commitment</span>
             </Link>
 
-            {/* User Profile / Auth Widget Button */}
+            {/* User Profile / Auth Widget */}
             <div className="relative pl-2 border-l border-slate-200" ref={profileMenuRef}>
               {user ? (
                 <div>
@@ -191,7 +191,7 @@ export function Header() {
 
                   {/* Profile Popup Widget */}
                   {profileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-3 z-50">
                       {/* User Info Header */}
                       <div className="px-4 pb-3 border-b border-slate-100 space-y-1">
                         <div className="flex items-center justify-between">
