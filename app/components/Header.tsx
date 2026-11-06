@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PayPalWalletModal } from './PayPalWalletModal';
@@ -13,7 +13,10 @@ export function Header() {
   const { user, logout } = useAuth();
   const [walletOpen, setWalletOpen] = useState(false);
   const [topUpOpen, setTopUpOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [balance, setBalance] = useState<number>(500);
+
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchBal() {
@@ -31,6 +34,17 @@ export function Header() {
     }
     fetchBal();
   }, [walletOpen, topUpOpen]);
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Hide the entire top bar on the root landing page (/)
   if (pathname === '/') {
@@ -152,37 +166,107 @@ export function Header() {
               <span>+ New Commitment</span>
             </Link>
 
-            {/* User Profile / Auth Switcher */}
-            <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
+            {/* User Profile / Auth Widget Button */}
+            <div className="relative pl-2 border-l border-slate-200" ref={profileMenuRef}>
               {user ? (
-                <div className="flex items-center gap-1.5">
-                  <Link
-                    href="/login"
-                    className="flex flex-col text-right hover:opacity-80 transition-opacity"
-                    title="Click to Switch User Role or Account"
-                  >
-                    <span className="text-[11px] font-bold text-slate-900 leading-tight">
-                      {user.name}
-                    </span>
-                    <span className="text-[9px] font-mono font-semibold uppercase text-[#0070ba] leading-tight">
-                      [{user.role}]
-                    </span>
-                  </Link>
+                <div>
                   <button
-                    onClick={() => {
-                      logout();
-                      router.push('/login');
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-600 rounded text-xs"
-                    title="Sign Out"
+                    onClick={() => setProfileMenuOpen((prev) => !prev)}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-slate-100/80 transition-colors border border-transparent hover:border-slate-200"
+                    title="Account details and settings"
                   >
-                    🚪
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-[#003087] font-bold text-xs flex items-center justify-center uppercase">
+                      {user.name.charAt(0)}
+                    </div>
+                    <div className="hidden sm:flex flex-col text-left">
+                      <span className="text-[11px] font-bold text-slate-900 leading-tight">
+                        {user.name}
+                      </span>
+                      <span className="text-[9px] font-mono font-semibold uppercase text-[#0070ba] leading-tight">
+                        [{user.role}]
+                      </span>
+                    </div>
+                    <span className="text-slate-400 text-[10px]">▼</span>
                   </button>
+
+                  {/* Profile Popup Widget */}
+                  {profileMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      {/* User Info Header */}
+                      <div className="px-4 pb-3 border-b border-slate-100 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-slate-900 truncate">{user.name}</p>
+                          <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-blue-50 text-[#0070ba] border border-blue-200">
+                            {user.role}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono truncate">{user.email}</p>
+                      </div>
+
+                      {/* Menu Actions */}
+                      <div className="py-1 text-xs">
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setProfileMenuOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0070ba] transition-colors"
+                        >
+                          <span>📋</span>
+                          <span>My Commitments Desk</span>
+                        </Link>
+
+                        {(user.role === 'referee' || user.role === 'admin' || user.isRefereeAssigned) && (
+                          <Link
+                            href="/referee"
+                            onClick={() => setProfileMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700 transition-colors"
+                          >
+                            <span>⚖️</span>
+                            <span>Referee Tribunal</span>
+                          </Link>
+                        )}
+
+                        {user.role === 'admin' && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setProfileMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#003087] transition-colors"
+                          >
+                            <span>🛡️</span>
+                            <span>Admin Suite &amp; Ledger</span>
+                          </Link>
+                        )}
+
+                        <Link
+                          href="/login"
+                          onClick={() => setProfileMenuOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0070ba] transition-colors"
+                        >
+                          <span>🔄</span>
+                          <span>Switch Account / Sign In</span>
+                        </Link>
+                      </div>
+
+                      {/* Log Out Button */}
+                      <div className="pt-2 px-3 border-t border-slate-100">
+                        <button
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            logout();
+                            router.push('/login');
+                          }}
+                          className="w-full py-2 px-3 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <span>🚪</span>
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Link
                   href="/login"
-                  className="px-3 py-1.5 bg-[#003087] text-white text-xs font-bold rounded-lg hover:bg-[#0070ba] transition-colors"
+                  className="px-3.5 py-1.5 bg-[#003087] hover:bg-[#0070ba] text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
                 >
                   Sign In
                 </Link>
