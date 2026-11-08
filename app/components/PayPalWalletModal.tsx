@@ -18,7 +18,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
   const [loading, setLoading] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
 
-  // Top Up state
+  // Top Up state with interactive slider + exact input box
   const [topUpAmount, setTopUpAmount] = useState<string>('50');
   const [toppingUp, setToppingUp] = useState(false);
   const [topUpSuccess, setTopUpSuccess] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
         if (typeof data.balance === 'number') setBalance(data.balance);
         if (typeof data.startingBalance === 'number') setStartingBalance(data.startingBalance);
         window.dispatchEvent(new CustomEvent('paypal_balance_updated', { detail: data.balance }));
-        setTopUpSuccess(`✓ Successfully added +$${amount.toFixed(2)} USD to your Sandbox balance!`);
+        setTopUpSuccess(`✓ Added +$${amount.toFixed(2)} USD to your Sandbox balance!`);
         setTimeout(() => setTopUpSuccess(null), 3500);
       }
     } catch (e) {
@@ -93,6 +93,9 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
   }
 
   if (!isOpen) return null;
+
+  const numericTopUp = parseFloat(topUpAmount) || 0;
+  const projectedPool = balance + numericTopUp;
 
   return (
     <div
@@ -114,7 +117,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-[#003087]">PayPal Sandbox Wallet</h2>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
-                  ORDERS v2 ESCROW
+                  ESCROW POOL
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-mono">sb-buyer@personal.example.com</p>
@@ -182,67 +185,81 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
             </div>
           </div>
 
-          {/* Top Up Sandbox Balance Section */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          {/* Interactive Top Up Slider Bar + Exact Box */}
+          <div className="p-4 sm:p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <span>➕</span> Top Up Sandbox Balance
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <span>⚡</span> Top Up Sandbox Balance
               </span>
               <span className="text-[10px] font-mono text-[#0070ba] font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                ANY AMOUNT
+                INTERACTIVE BAR
               </span>
             </div>
 
-            {/* Quick Preset Buttons */}
-            <div className="flex flex-wrap gap-1.5">
-              {[10, 25, 50, 100, 500].map((amt) => (
+            {/* 1. Cool Interactive Slider Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-medium">Slide to select amount:</span>
+                <span className="font-mono font-extrabold text-[#003087] text-sm">
+                  +${numericTopUp.toFixed(2)} USD
+                </span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="500"
+                step="5"
+                value={Math.min(500, Math.max(5, numericTopUp || 50))}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                className="w-full h-3 bg-gradient-to-r from-blue-200 via-[#0070ba] to-[#003087] rounded-lg cursor-pointer accent-[#003087]"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>$5</span>
+                <span>$100</span>
+                <span>$250</span>
+                <span>$500+</span>
+              </div>
+            </div>
+
+            {/* 2. Exact Custom Input Box Underneath */}
+            <div className="space-y-1.5 pt-1 border-t border-slate-200/60">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                Or enter exact amount in box:
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={topUpAmount}
+                    onChange={(e) => setTopUpAmount(e.target.value)}
+                    placeholder="50.00"
+                    className="w-full pl-7 pr-12 py-2.5 rounded-xl border border-slate-300 font-mono font-bold text-xs sm:text-sm text-slate-900 bg-white focus:outline-hidden focus:border-[#0070ba] focus:ring-1 focus:ring-[#0070ba]"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[11px] font-mono">USD</span>
+                </div>
+
                 <button
                   type="button"
-                  key={amt}
-                  onClick={() => setTopUpAmount(String(amt))}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all active:scale-95 ${
-                    parseFloat(topUpAmount) === amt
-                      ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                  }`}
+                  onClick={() => handleTopUp()}
+                  disabled={toppingUp || numericTopUp <= 0}
+                  className="px-4 py-2.5 bg-[#0070ba] hover:bg-[#003087] text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 active:scale-95 shrink-0"
                 >
-                  +${amt}
+                  {toppingUp ? 'Adding…' : 'Top Up Pool'}
                 </button>
-              ))}
-            </div>
-
-            {/* Custom Amount Input & Button */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                  placeholder="Amount..."
-                  className="w-full pl-6 pr-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-hidden focus:border-[#0070ba]"
-                />
               </div>
-
-              <button
-                type="button"
-                onClick={() => handleTopUp()}
-                disabled={toppingUp || !parseFloat(topUpAmount) || parseFloat(topUpAmount) <= 0}
-                className="px-4 py-2 bg-[#0070ba] hover:bg-[#003087] text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 active:scale-95 shrink-0"
-              >
-                {toppingUp ? 'Adding…' : 'Top Up Pool'}
-              </button>
             </div>
-          </div>
 
-          {/* Escrow Rule Note */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
-            <span className="font-bold text-slate-800 block">System Escrow Rule:</span>
-            <p className="leading-relaxed">
-              When a commitment is authorized, the stake is held in temporary authorization (intent: AUTHORIZE). Funds remain safely in your pool but are locked until proof succeeds (voided/returned) or forfeits (captured to charity).
-            </p>
+            {numericTopUp > 0 && (
+              <div className="p-2.5 bg-blue-50/60 border border-blue-200 rounded-xl text-xs flex justify-between items-center text-slate-700">
+                <span>Available after this top up:</span>
+                <span className="font-mono font-extrabold text-[#003087]">
+                  ${projectedPool.toFixed(2)} USD
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Sandbox Buyer Credentials */}

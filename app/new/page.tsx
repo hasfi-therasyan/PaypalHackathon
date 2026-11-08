@@ -409,7 +409,30 @@ export default function CreatePledgePage() {
                   </span>
                 </div>
 
-                {/* Custom Flexible Currency Input */}
+                {/* Interactive Slider Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
+                    <span>$0.01</span>
+                    <span>$50</span>
+                    <span>$100</span>
+                    <span>$250</span>
+                    <span>$500+</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.01"
+                    max="500"
+                    step="0.01"
+                    value={Math.min(500, Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01))}
+                    onChange={(e) => setStakeDollars(parseFloat(e.target.value))}
+                    className="w-full h-3 rounded-lg cursor-pointer accent-[#003087]"
+                    style={{
+                      background: `linear-gradient(to right, #0070ba 0%, #003087 ${(Math.min(500, Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01)) / 500) * 100}%, #e2e8f0 ${(Math.min(500, Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01)) / 500) * 100}%, #e2e8f0 100%)`
+                    }}
+                  />
+                </div>
+
+                {/* Exact Input Box Underneath */}
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
                   <input
@@ -423,27 +446,6 @@ export default function CreatePledgePage() {
                     placeholder="15.00"
                   />
                   <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs font-mono">USD</span>
-                </div>
-
-                {/* Quick Presets Chips */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Quick Presets:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[0.01, 1, 5, 15, 50, 100, 250, 500].map((preset) => (
-                      <button
-                        type="button"
-                        key={preset}
-                        onClick={() => setStakeDollars(preset)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-all active:scale-95 ${
-                          parseFloat(String(stakeDollars)) === preset
-                            ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        ${preset}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <span className="text-[11px] text-slate-500 block leading-tight">
