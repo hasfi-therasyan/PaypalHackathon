@@ -7,6 +7,7 @@ import { compressProofImageInBrowser } from '@/app/lib/proofs/compress-client';
 import { recognizeChallengeCode, type OcrResult } from '@/app/lib/proofs/ocr-client';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
+import { LoadingScreen } from '@/app/components/LoadingScreen';
 
 function Requirement({ label, value }: { label: string; value: string }) {
   return (
@@ -110,7 +111,8 @@ export default function PledgeDetailPage() {
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || 'Failed to submit proof.');
 
-      router.replace(`/pledges/${pledgeId}`);
+      // Refresh data
+      window.location.reload();
     } catch (err: any) {
       setError(err.message);
       setSubmittingProof(false);
@@ -122,8 +124,10 @@ export default function PledgeDetailPage() {
     setOcrResult(null);
     setCompressionNote(null);
     if (!file) return;
+
     setPreparingPhoto(true);
     setError(null);
+
     try {
       let imageToUpload = file;
       try {
@@ -131,24 +135,30 @@ export default function PledgeDetailPage() {
         imageToUpload = compressed.file;
         setCompressionNote(
           compressed.file.size < compressed.originalBytes
-            ? `Compressed before upload: ${(compressed.originalBytes / 1024 / 1024).toFixed(1)} MB → ${(compressed.file.size / 1024 / 1024).toFixed(1)} MB.`
-            : 'Photo is ready for referee submission.'
+            ? `Compressed: ${(compressed.originalBytes / 1024 / 1024).toFixed(1)} MB → ${(compressed.file.size / 1024 / 1024).toFixed(1)} MB`
+            : 'Photo ready for referee review.'
         );
       } catch (cErr) {
         setCompressionNote('Using original image.');
       }
-      setProofPhoto(imageToUpload);
 
-      // Free OCR pre-check in background without blocking submission
-      try {
-        const ocr = await recognizeChallengeCode(imageToUpload);
-        setOcrResult(ocr);
-      } catch (ocrErr) {
-        console.warn('OCR pre-check skipped:', ocrErr);
-      }
+      // Immediately set image so user can submit without delay
+      setProofPhoto(imageToUpload);
+      setPreparingPhoto(false);
+
+      // Run OCR as non-blocking background check with a 4s timeout
+      Promise.race([
+        recognizeChallengeCode(imageToUpload),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+      ])
+        .then((ocr) => {
+          if (ocr) setOcrResult(ocr);
+        })
+        .catch(() => {
+          // Non-blocking fallback
+        });
     } catch (err: any) {
       console.warn('Photo processing fallback:', err);
-    } finally {
       setPreparingPhoto(false);
     }
   }
@@ -177,6 +187,7 @@ export default function PledgeDetailPage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto py-16 text-center text-slate-500 text-xs">
+        <div className="w-8 h-8 rounded-full border-2 border-slate-300 border-t-[#0070ba] animate-spin mx-auto mb-3" />
         Loading commitment contract...
       </div>
     );
@@ -200,223 +211,245 @@ export default function PledgeDetailPage() {
   const stakeAmount = ((pledge.stake_cents || 0) / 100).toFixed(2);
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-[#e2e8f0]">
-        <div>
-          <Link href="/dashboard" className="text-xs font-semibold text-[#0070ba] hover:underline mb-1 inline-block">
-            ← Return to Dashboard
-          </Link>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#003087] tracking-tight">
-              {pledge.title}
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#0070ba] border border-blue-200">
-              {pledge.status}
-            </span>
+    <>
+      {/* Full-screen Loading Overlay for Proof Submission */}
+      <LoadingScreen
+        isOpen={submittingProof}
+        title="Evaluating Sprint Proof..."
+        subtitle="Uploading evidence, running referee verification checks, and updating the immutable SHA-256 ledger..."
+        steps={[
+          'Uploading sprint proof evidence securely...',
+          'Verifying challenge code & rubric requirements...',
+          'Computing AI referee evaluation...',
+          'Recording immutable verdict on the ledger chain...',
+        ]}
+      />
+
+      <div className="max-w-4xl mx-auto py-4 sm:py-6 px-3 sm:px-4 space-y-6 sm:space-y-8 pb-24 md:pb-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-[#e2e8f0]">
+          <div>
+            <Link href="/dashboard" className="text-xs font-semibold text-[#0070ba] hover:underline mb-1 inline-flex items-center gap-1">
+              ← Return to Dashboard
+            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#003087] tracking-tight">
+                {pledge.title}
+              </h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#0070ba] border border-blue-200">
+                {pledge.status}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/pledges/${pledgeId}/ledger`}
-            className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-[#0070ba] text-xs font-bold rounded-xl transition-colors shadow-2xs"
-          >
-            Inspect SHA-256 Ledger
-          </Link>
-
-          {pledge.status === 'ACTIVE' && (
-            <button
-              onClick={handleGraceCancel}
-              disabled={cancelling}
-              className="px-3 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-xl transition-colors"
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <Link
+              href={`/pledges/${pledgeId}/ledger`}
+              className="flex-1 sm:flex-initial text-center px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:text-[#0070ba] text-xs font-bold rounded-xl transition-colors shadow-2xs"
             >
-              {cancelling ? 'Cancelling...' : 'Grace Cancel (Void)'}
-            </button>
-          )}
-        </div>
-      </div>
+              Inspect SHA-256 Ledger
+            </Link>
 
-      {error && (
-        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-medium">
-          {error}
-        </div>
-      )}
-
-      {/* Contract & Escrow Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Main Details (2 cols) */}
-        <div className="md:col-span-2 space-y-6">
-          {/* Rubric Card */}
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-3">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-900">Locked Verification Rubric</h2>
-              <span className="text-[11px] font-mono text-slate-500">
-                SHA-256: {pledge.rubric_hash?.slice(0, 12)}...
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              {pledge.goal_type === 'github' ? (
-                <>
-                  <Requirement label="Repository" value={pledge.rubric_json?.repo || 'Not specified'} />
-                  <Requirement label="Contributor" value={pledge.rubric_json?.username || 'Not specified'} />
-                  <Requirement label="Minimum commits" value={`${pledge.rubric_json?.min_commits || 0} commits`} />
-                  <Requirement label="Work across" value={`${pledge.rubric_json?.min_distinct_days || 1} day(s)`} />
-                  <Requirement label="Code changed" value={`${pledge.rubric_json?.min_changed_lines || 0}+ lines`} />
-                </>
-              ) : (
-                <>
-                  <Requirement label="Challenge code" value={pledge.rubric_json?.challenge_code || 'Issued after commitment is created'} />
-                  <Requirement label="Your photo must show" value={(pledge.rubric_json?.required_scene_elements || ['laptop', 'notes']).join(', ')} />
-                  <Requirement label="Recognition target" value={`${Math.round((pledge.rubric_json?.min_confidence || 0.7) * 100)}% confidence`} />
-                </>
-              )}
-            </div>
+            {pledge.status === 'ACTIVE' && (
+              <button
+                onClick={handleGraceCancel}
+                disabled={cancelling}
+                className="px-3 py-2 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-xl transition-colors"
+              >
+                {cancelling ? 'Cancelling...' : 'Grace Cancel (Void)'}
+              </button>
+            )}
           </div>
+        </div>
 
-          {/* Authorization Hold Needed Banner (If Rubric Locked) */}
-          {pledge.status === 'RUBRIC_LOCKED' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-xs space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                <h2 className="text-base font-bold text-amber-900">Step 2: PayPal Authorization Hold Required</h2>
+        {error && (
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-medium">
+            {error}
+          </div>
+        )}
+
+        {/* Contract & Escrow Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Main Details (2 cols) */}
+          <div className="md:col-span-2 space-y-6">
+            {/* Rubric Card */}
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 sm:p-6 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 pb-2 border-b border-slate-100">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Locked Verification Rubric</h2>
+                <span className="text-[11px] font-mono text-slate-500 truncate">
+                  SHA-256: {pledge.rubric_hash?.slice(0, 16)}...
+                </span>
               </div>
-              <p className="text-xs text-amber-800 leading-relaxed">
-                Your commitment rubric is locked and hashed into the ledger. To activate the sprint and start submitting proof, authorize the safe PayPal sandbox hold.
-              </p>
-              <div className="pt-2 flex flex-wrap items-center gap-3">
-                <Link
-                  href={`/pledges/new/checkout/${pledgeId}`}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0070ba] hover:bg-[#003087] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                >
-                  <span>Authorize with PayPal Sandbox (${stakeAmount} USD Hold) &rarr;</span>
-                </Link>
-                <Link
-                  href={`/pledges/${pledgeId}/approve`}
-                  className="text-xs font-semibold text-[#0070ba] hover:underline"
-                >
-                  or view PayPal SDK Checkout
-                </Link>
-              </div>
-            </div>
-          )}
 
-          {/* Proof Submission Card (If Active) */}
-          {pledge.status === 'ACTIVE' && (
-            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4">
-              <h2 className="text-base font-bold text-[#003087]">Submit Sprint Proof</h2>
-
-              <form onSubmit={handleProofSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {pledge.goal_type === 'github' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div className="space-y-1">
-                      <label className="font-bold text-slate-700">Repository (owner/repo)</label>
-                      <input
-                        type="text"
-                        value={githubRepoInput}
-                        onChange={(e) => setGithubRepoInput(e.target.value)}
-                        required
-                        className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="font-bold text-slate-700">Author Username</label>
-                      <input
-                        type="text"
-                        value={githubAuthorInput}
-                        onChange={(e) => setGithubAuthorInput(e.target.value)}
-                        required
-                        className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
-                      />
-                    </div>
-                  </div>
+                  <>
+                    <Requirement label="Repository" value={pledge.rubric_json?.repo || 'Not specified'} />
+                    <Requirement label="Contributor" value={pledge.rubric_json?.username || 'Not specified'} />
+                    <Requirement label="Minimum commits" value={`${pledge.rubric_json?.min_commits || 0} commits`} />
+                    <Requirement label="Work across" value={`${pledge.rubric_json?.min_distinct_days || 1} day(s)`} />
+                    <Requirement label="Code changed" value={`${pledge.rubric_json?.min_changed_lines || 0}+ lines`} />
+                  </>
                 ) : (
-                  <div className="space-y-3 text-xs">
-                    <div className="space-y-1.5">
-                      <label htmlFor="proofPhoto" className="font-bold text-slate-700">
-                        Evidence Photo
-                      </label>
-                      <input
-                        id="proofPhoto"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        required
-                        onChange={(e) => handlePhotoSelected(e.target.files?.[0] || null)}
-                        aria-describedby="proofPhotoHint"
-                        className="block w-full rounded-xl border border-slate-300 bg-white p-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
-                      />
-                      <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
-                        JPEG, PNG, or WebP up to 10 MB. Your nominated referee verifies the challenge code card and scene.
-                      </p>
-                      {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Reading challenge code…</p>}
-                      {compressionNote && <p className="text-[11px] text-emerald-700" aria-live="polite">{compressionNote}</p>}
-                    </div>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
-                      <p className="font-bold text-slate-700">On-device OCR detection</p>
-                      <p className="font-mono text-[#003087]">{ocrResult?.detectedCode || (preparingPhoto ? 'Reading code…' : 'Code ready for submission')}</p>
-                      <p className="text-[11px] text-slate-500">OCR is a pre-check. Your nominated referee evaluates the photo.</p>
-                    </div>
-                  </div>
+                  <>
+                    <Requirement label="Challenge code" value={pledge.rubric_json?.challenge_code || 'Issued after commitment is created'} />
+                    <Requirement label="Your photo must show" value={(pledge.rubric_json?.required_scene_elements || ['laptop', 'notes']).join(', ')} />
+                    <Requirement label="Recognition target" value={`${Math.round((pledge.rubric_json?.min_confidence || 0.7) * 100)}% confidence`} />
+                  </>
                 )}
-
-                <button
-                  type="submit"
-                  disabled={submittingProof || (pledge.goal_type !== 'github' && !proofPhoto)}
-                  className="w-full py-3.5 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50"
-                >
-                  {submittingProof
-                    ? (pledge.goal_type === 'github' ? 'Scanning GitHub commits...' : 'Uploading proof for referee review...')
-                    : (pledge.goal_type === 'github' ? 'Submit GitHub Proof to Referee' : 'Submit Photo Proof to Referee')}
-                </button>
-              </form>
+              </div>
             </div>
-          )}
 
-          {pledge.status === 'APPEAL_WINDOW_OPEN' && data.proof && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-xs space-y-2">
-              <h2 className="font-bold text-amber-900">Evidence submitted</h2>
-              <p className="text-amber-800 leading-relaxed">
-                Your proof was sent on {new Date(data.proof.submitted_at).toLocaleString()}. Your nominated referee is reviewing it now; no action is required from you.
-              </p>
-              <p className="text-amber-800">You will see the settlement outcome here when the referee completes the review.</p>
-            </div>
-          )}
-        </div>
+            {/* Authorization Hold Needed Banner (If Rubric Locked) */}
+            {pledge.status === 'RUBRIC_LOCKED' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                  <h2 className="text-sm sm:text-base font-bold text-amber-900">Step 2: PayPal Authorization Hold Required</h2>
+                </div>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Your commitment rubric is locked and hashed into the ledger. To activate the sprint and start submitting proof, authorize the safe PayPal sandbox hold.
+                </p>
+                <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <Link
+                    href={`/pledges/new/checkout/${pledgeId}`}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#0070ba] hover:bg-[#003087] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                  >
+                    <span>Authorize with PayPal Sandbox (${stakeAmount} USD Hold) &rarr;</span>
+                  </Link>
+                  <Link
+                    href={`/pledges/${pledgeId}/approve`}
+                    className="text-xs font-semibold text-[#0070ba] hover:underline text-center sm:text-left"
+                  >
+                    or view PayPal SDK Checkout
+                  </Link>
+                </div>
+              </div>
+            )}
 
-        {/* Sidebar Info (1 col) */}
-        <div className="space-y-4">
-          {/* Financial Card */}
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-3">
-            <span className="text-xs font-bold text-[#64748b] uppercase tracking-wider block">
-              Authorization Hold
-            </span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-[#003087] font-tabular">
-                ${stakeAmount}
+            {/* Proof Submission Card (If Active) */}
+            {pledge.status === 'ACTIVE' && (
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
+                <h2 className="text-base font-bold text-[#003087]">Submit Sprint Proof</h2>
+
+                <form onSubmit={handleProofSubmit} className="space-y-4">
+                  {pledge.goal_type === 'github' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs">
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-700">Repository (owner/repo)</label>
+                        <input
+                          type="text"
+                          value={githubRepoInput}
+                          onChange={(e) => setGithubRepoInput(e.target.value)}
+                          required
+                          className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-700">Author Username</label>
+                        <input
+                          type="text"
+                          value={githubAuthorInput}
+                          onChange={(e) => setGithubAuthorInput(e.target.value)}
+                          required
+                          className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 text-xs">
+                      <div className="space-y-1.5">
+                        <label htmlFor="proofPhoto" className="font-bold text-slate-700">
+                          Evidence Photo
+                        </label>
+                        <input
+                          id="proofPhoto"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          required
+                          onChange={(e) => handlePhotoSelected(e.target.files?.[0] || null)}
+                          aria-describedby="proofPhotoHint"
+                          className="block w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
+                        />
+                        <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
+                          JPEG, PNG, or WebP. Your challenge code must be visible in the image.
+                        </p>
+                        {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Preparing photo…</p>}
+                        {compressionNote && <p className="text-[11px] text-emerald-700 font-medium" aria-live="polite">✓ {compressionNote}</p>}
+                      </div>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
+                        <p className="font-bold text-slate-700">OCR & Challenge Code Status</p>
+                        <p className="font-mono text-xs text-[#003087]">
+                          {ocrResult?.detectedCode ? `Detected code: ${ocrResult.detectedCode}` : 'Photo loaded and ready for referee submission'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">Your nominated referee reviews your proof before final settlement.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={submittingProof || (pledge.goal_type !== 'github' && !proofPhoto)}
+                    className="w-full py-4 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                  >
+                    {submittingProof ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                        <span>Submitting Proof to Referee…</span>
+                      </>
+                    ) : (
+                      <span>{pledge.goal_type === 'github' ? 'Submit GitHub Proof to Referee' : 'Submit Photo Proof to Referee'} &rarr;</span>
+                    )}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {pledge.status === 'APPEAL_WINDOW_OPEN' && data.proof && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 text-xs space-y-2">
+                <h2 className="font-bold text-amber-900">Evidence submitted</h2>
+                <p className="text-amber-800 leading-relaxed">
+                  Your proof was sent on {new Date(data.proof.submitted_at).toLocaleString()}. Your nominated referee is reviewing it now; no action is required from you.
+                </p>
+                <p className="text-amber-800">You will see the settlement outcome here when the referee completes the review.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar Info (1 col) */}
+          <div className="space-y-4">
+            {/* Financial Card */}
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 sm:p-6 shadow-xs space-y-3">
+              <span className="text-xs font-bold text-[#64748b] uppercase tracking-wider block">
+                Authorization Hold
               </span>
-              <span className="text-xs font-bold text-[#0070ba]">USD</span>
-            </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-[#003087] font-tabular">
+                  ${stakeAmount}
+                </span>
+                <span className="text-xs font-bold text-[#0070ba]">USD</span>
+              </div>
 
-            <div className="pt-2 border-t border-slate-100 text-xs space-y-2 text-slate-600">
-              <div className="flex justify-between">
-                <span>Beneficiary:</span>
-                <strong className="text-slate-900">{pledge.beneficiary_name}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Referee:</span>
-                <strong className="text-slate-900 font-mono text-[11px] truncate max-w-[140px]" title={pledge.referee_email}>
-                  {pledge.referee_email}
-                </strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Expiration:</span>
-                <span className="font-mono text-slate-700">{new Date(pledge.ends_at).toLocaleDateString()}</span>
+              <div className="pt-2 border-t border-slate-100 text-xs space-y-2 text-slate-600">
+                <div className="flex justify-between">
+                  <span>Beneficiary:</span>
+                  <strong className="text-slate-900 truncate max-w-[150px]">{pledge.beneficiary_name}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Referee:</span>
+                  <strong className="text-slate-900 font-mono text-[11px] truncate max-w-[140px]" title={pledge.referee_email}>
+                    {pledge.referee_email}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Expiration:</span>
+                  <span className="font-mono text-slate-700">{new Date(pledge.ends_at).toLocaleDateString()}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

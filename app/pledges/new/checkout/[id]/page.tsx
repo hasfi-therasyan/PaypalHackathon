@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
+import { LoadingScreen } from '@/app/components/LoadingScreen';
 
 export default function CheckoutPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -133,171 +134,193 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className="max-w-lg mx-auto py-8 px-4">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-8 space-y-6">
-        {/* Header */}
-        <div className="border-b border-slate-100 pb-4">
-          <Link href="/dashboard" className="text-xs font-semibold text-[#0070ba] hover:underline mb-2 inline-block">
-            ← Return to Dashboard
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#0070ba] text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              P
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-[#003087]">Authorize PayPal Commitment Hold</h1>
-              <p className="text-xs text-slate-500">Sandbox Orders v2 · Intent: AUTHORIZE</p>
-            </div>
-          </div>
-        </div>
+    <>
+      {/* Full-screen Loading Overlay during Hold Authorization */}
+      <LoadingScreen
+        isOpen={authorizing}
+        title="Authorizing PayPal Sandbox Hold..."
+        subtitle="Placing a temporary authorization hold on your Sandbox balance and registering the event to the cryptographic ledger..."
+        steps={[
+          'Contacting PayPal Orders v2 Sandbox API...',
+          'Placing temporary authorization hold on funds...',
+          'Updating sandbox money pool balance...',
+          'Activating commitment contract sprint...',
+        ]}
+      />
 
-        {errorMsg && (
-          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-medium">
-            {errorMsg}
-          </div>
-        )}
-
-        {/* Commitment Summary */}
-        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-2">
-          <div className="flex justify-between items-baseline">
-            <span className="text-xs font-bold text-slate-600 uppercase">Commitment Hold Amount</span>
-            <span className="text-2xl font-black text-[#003087] font-mono">${stakeAmount} USD</span>
-          </div>
-          <p className="text-xs text-slate-600">
-            Goal: <strong className="text-slate-900">{pledge?.title || 'Hackathon Commitment'}</strong>
-          </p>
-          <div className="text-[11px] text-slate-500 pt-1 border-t border-blue-100/60 flex items-center justify-between">
-            <span>Beneficiary: <strong className="text-slate-700">{pledge?.beneficiary_name || 'Selected Charity'}</strong></span>
-            <span className="font-mono text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-              0% FEES ON PASS
-            </span>
-          </div>
-        </div>
-
-        {/* Sandbox Money Pool Status */}
-        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-          <div className="flex justify-between items-center text-xs">
-            <span className="text-slate-600 font-medium">Available PayPal Sandbox Pool:</span>
-            <span className="font-mono font-bold text-slate-900">${sandboxBalance.toFixed(2)} USD</span>
-          </div>
-          <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200/60">
-            <span className="text-slate-500 font-medium">Balance After Hold Authorization:</span>
-            <span className="font-mono font-bold text-[#0070ba]">${projectedBalance} USD</span>
-          </div>
-        </div>
-
-        {/* Funding Source Selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-700 block">Preferred Sandbox Payment Source</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setSelectedFunding('balance')}
-              className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
-                selectedFunding === 'balance'
-                  ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-              }`}
-            >
-              💰 PayPal Balance
-              <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Deduct from Sandbox pool</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedFunding('card')}
-              className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
-                selectedFunding === 'card'
-                  ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-              }`}
-            >
-              💳 Linked Debit/Card
-              <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Sandbox mock Visa 4242</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Primary Action Button: "Paypal Sandbox" */}
-        {selectedFunding === 'balance' ? (
-          <div className="space-y-3 pt-1">
-            <button
-              type="button"
-              onClick={handleSandboxBalancePay}
-              disabled={authorizing || sandboxBalance < stakeDollars}
-              className="w-full py-4 px-6 rounded-xl font-bold text-sm bg-[#0070ba] hover:bg-[#003087] text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50"
-            >
-              <span className="w-6 h-6 rounded-full bg-white text-[#0070ba] font-black text-xs flex items-center justify-center shadow-xs">
+      <div className="max-w-lg mx-auto py-4 sm:py-8 px-3 sm:px-4 pb-24 md:pb-8">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 sm:p-8 space-y-5 sm:space-y-6">
+          {/* Header */}
+          <div className="border-b border-slate-100 pb-4">
+            <Link href="/dashboard" className="text-xs font-semibold text-[#0070ba] hover:underline mb-2 inline-flex items-center gap-1">
+              ← Return to Dashboard
+            </Link>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#0070ba] text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
                 P
-              </span>
-              <span>
-                {authorizing ? 'Authorizing Hold...' : `Paypal Sandbox ($${stakeAmount} USD Hold)`}
-              </span>
-            </button>
-            <p className="text-[11px] text-center text-slate-500">
-              Instantly authorizes the hold and reduces your PayPal Sandbox money pool.
-            </p>
+              </div>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold text-[#003087]">Authorize PayPal Commitment Hold</h1>
+                <p className="text-[11px] text-slate-500">Sandbox Orders v2 · Intent: AUTHORIZE</p>
+              </div>
+            </div>
+          </div>
 
-            <div className="relative py-2 flex items-center justify-center">
-              <div className="border-t border-slate-200 w-full" />
-              <span className="bg-white px-2 text-[10px] uppercase font-mono font-bold text-slate-400 absolute">
-                or use PayPal Popup Login
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-medium">
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Commitment Summary */}
+          <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs font-bold text-slate-600 uppercase">Commitment Hold Amount</span>
+              <span className="text-2xl font-black text-[#003087] font-mono">${stakeAmount} USD</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              Goal: <strong className="text-slate-900">{pledge?.title || 'Hackathon Commitment'}</strong>
+            </p>
+            <div className="text-[11px] text-slate-500 pt-1 border-t border-blue-100/60 flex items-center justify-between">
+              <span>Beneficiary: <strong className="text-slate-700">{pledge?.beneficiary_name || 'Selected Charity'}</strong></span>
+              <span className="font-mono text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                0% FEES ON PASS
               </span>
             </div>
-
-            <PayPalScriptProvider
-              options={{
-                clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
-                currency: 'USD',
-                intent: 'authorize',
-              }}
-            >
-              <PayPalButtons
-                style={{
-                  layout: 'vertical',
-                  color: 'gold',
-                  shape: 'rect',
-                  label: 'pay',
-                  height: 44,
-                }}
-                createOrder={createOrder}
-                onApprove={onApprove}
-              />
-            </PayPalScriptProvider>
           </div>
-        ) : (
-          <div className="pt-2">
-            <PayPalScriptProvider
-              options={{
-                clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
-                currency: 'USD',
-                intent: 'authorize',
-              }}
-            >
-              <PayPalButtons
-                style={{
-                  layout: 'vertical',
-                  color: 'gold',
-                  shape: 'rect',
-                  label: 'pay',
-                  height: 44,
-                }}
-                createOrder={createOrder}
-                onApprove={onApprove}
-                fundingSource="paypal"
-              />
-            </PayPalScriptProvider>
-          </div>
-        )}
 
-        {/* Quick sandbox hint */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
-          <span className="font-bold text-slate-800 block">Sandbox Verification Guarantee:</span>
-          <p>
-            Funds remain held in authorization state. If proof is accepted, the hold is voided with 0 fees. If forfeited, the stake is transferred to the designated beneficiary.
-          </p>
+          {/* Sandbox Money Pool Status */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-600 font-medium">Available PayPal Sandbox Pool:</span>
+              <span className="font-mono font-bold text-slate-900">${sandboxBalance.toFixed(2)} USD</span>
+            </div>
+            <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200/60">
+              <span className="text-slate-500 font-medium">Balance After Hold Authorization:</span>
+              <span className="font-mono font-bold text-[#0070ba]">${projectedBalance} USD</span>
+            </div>
+          </div>
+
+          {/* Funding Source Selector */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 block">Preferred Sandbox Payment Source</label>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedFunding('balance')}
+                className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
+                  selectedFunding === 'balance'
+                    ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                💰 PayPal Balance
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Deduct from Sandbox pool</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedFunding('card')}
+                className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
+                  selectedFunding === 'card'
+                    ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                💳 Linked Debit/Card
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Sandbox mock Visa 4242</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Primary Action Button: "Paypal Sandbox" */}
+          {selectedFunding === 'balance' ? (
+            <div className="space-y-3 pt-1">
+              <button
+                type="button"
+                onClick={handleSandboxBalancePay}
+                disabled={authorizing || sandboxBalance < stakeDollars}
+                className="w-full py-4 px-6 rounded-xl font-bold text-sm bg-[#0070ba] hover:bg-[#003087] text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+              >
+                {authorizing ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <span>Authorizing Hold...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-6 h-6 rounded-full bg-white text-[#0070ba] font-black text-xs flex items-center justify-center shadow-xs">
+                      P
+                    </span>
+                    <span>Paypal Sandbox (${stakeAmount} USD Hold)</span>
+                  </>
+                )}
+              </button>
+              <p className="text-[11px] text-center text-slate-500">
+                Instantly authorizes the hold and reduces your PayPal Sandbox money pool.
+              </p>
+
+              <div className="relative py-2 flex items-center justify-center">
+                <div className="border-t border-slate-200 w-full" />
+                <span className="bg-white px-2 text-[10px] uppercase font-mono font-bold text-slate-400 absolute">
+                  or use PayPal Popup Login
+                </span>
+              </div>
+
+              <PayPalScriptProvider
+                options={{
+                  clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
+                  currency: 'USD',
+                  intent: 'authorize',
+                }}
+              >
+                <PayPalButtons
+                  style={{
+                    layout: 'vertical',
+                    color: 'gold',
+                    shape: 'rect',
+                    label: 'pay',
+                    height: 44,
+                  }}
+                  createOrder={createOrder}
+                  onApprove={onApprove}
+                />
+              </PayPalScriptProvider>
+            </div>
+          ) : (
+            <div className="pt-2">
+              <PayPalScriptProvider
+                options={{
+                  clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
+                  currency: 'USD',
+                  intent: 'authorize',
+                }}
+              >
+                <PayPalButtons
+                  style={{
+                    layout: 'vertical',
+                    color: 'gold',
+                    shape: 'rect',
+                    label: 'pay',
+                    height: 44,
+                  }}
+                  createOrder={createOrder}
+                  onApprove={onApprove}
+                  fundingSource="paypal"
+                />
+              </PayPalScriptProvider>
+            </div>
+          )}
+
+          {/* Quick sandbox hint */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
+            <span className="font-bold text-slate-800 block">Sandbox Verification Guarantee:</span>
+            <p>
+              Funds remain held in authorization state. If proof is accepted, the hold is voided with 0 fees. If forfeited, the stake is transferred to the designated beneficiary.
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

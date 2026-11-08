@@ -263,12 +263,12 @@ export default function UserDashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between md:justify-end gap-5 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-                    <div className="text-left md:text-right">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between md:justify-end gap-3 sm:gap-5 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+                    <div className="flex items-center justify-between sm:block text-left md:text-right">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748b] block">
                         Commitment Stake
                       </span>
-                      <span className="text-xl font-black text-[#003087] font-tabular">
+                      <span className="text-lg sm:text-xl font-black text-[#003087] font-tabular">
                         ${stakeAmount}{' '}
                         <span className="text-xs font-semibold text-slate-500">USD</span>
                       </span>
@@ -277,7 +277,7 @@ export default function UserDashboardPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/pledges/${p.id}`}
-                        className="px-3 py-2 bg-[#f8fafc] hover:bg-slate-100 text-[#0b192c] font-bold text-xs rounded-xl border border-slate-200 transition-colors"
+                        className="flex-1 sm:flex-initial text-center px-3 py-2 bg-[#f8fafc] hover:bg-slate-100 text-[#0b192c] font-bold text-xs rounded-xl border border-slate-200 transition-colors"
                       >
                         Ledger & Proof
                       </Link>
@@ -285,7 +285,7 @@ export default function UserDashboardPage() {
                       {p.status === 'RUBRIC_LOCKED' && (
                         <Link
                           href={`/pledges/new/checkout/${p.id}`}
-                          className="px-3.5 py-2 bg-[#0070ba] hover:bg-[#003087] text-white font-bold text-xs rounded-xl transition-colors shadow-2xs"
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-2 bg-[#0070ba] hover:bg-[#003087] text-white font-bold text-xs rounded-xl transition-colors shadow-2xs"
                         >
                           Authorize Hold
                         </Link>
@@ -294,7 +294,7 @@ export default function UserDashboardPage() {
                       {p.status === 'ACTIVE' && (
                         <Link
                           href={`/pledges/${p.id}`}
-                          className="px-3.5 py-2 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs rounded-xl transition-colors shadow-2xs"
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-2 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs rounded-xl transition-colors shadow-2xs"
                         >
                           Submit Proof
                         </Link>
@@ -303,7 +303,7 @@ export default function UserDashboardPage() {
                       {p.status === 'APPEAL_WINDOW_OPEN' && (
                         <Link
                           href={`/pledges/${p.id}`}
-                          className="px-3.5 py-2 bg-[#9a4d00] hover:bg-[#7b3d00] text-white font-bold text-xs rounded-xl transition-colors shadow-2xs"
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-2 bg-[#9a4d00] hover:bg-[#7b3d00] text-white font-bold text-xs rounded-xl transition-colors shadow-2xs"
                         >
                           Review Appeal
                         </Link>
