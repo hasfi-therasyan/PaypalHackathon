@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, PledgeRecord } from '@/app/lib/db';
 import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { generateChallengeCode } from '@/app/lib/referee/photo';
+import { getViewer } from '@/app/lib/access';
 
 const MAX_STAKE_CENTS = 5000; // $50.00 USD hard limit
 const MIN_STAKE_CENTS = 500;   // A commitment contract always has a real sandbox hold
@@ -34,6 +35,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = validated.data;
+    const viewer = getViewer(request);
+    if (!viewer) {
+      return NextResponse.json({ error: 'Sign in before creating a commitment.' }, { status: 401 });
+    }
     const pledgeId = crypto.randomUUID();
 
     // Attach challenge code to photo rubric if photo goal
@@ -52,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const pledgeRecord: PledgeRecord = {
       id: pledgeId,
-      user_id: body.user_email || 'hasfi@personal.example.com',
+      user_id: viewer.email,
       title: body.goal_title,
       goal_type: body.goal_type as any,
       rubric_json: rubricToLock,
@@ -106,10 +111,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = Number(searchParams.get('limit') || 20);
     const cursor = searchParams.get('cursor');
-    const page = await db.pledges.listPage({ limit, cursor });
-    return NextResponse.json(page, {
-      headers: { 'Cache-Control': 'private, max-age=0, s-maxage=15, stale-while-revalidate=30' },
-    });
+    const scope = searchParams.get('scope') || 'owner';
+    const viewer = getViewer(request);
+    if (!viewer) {
+      return NextResponse.json({ error: 'Sign in to view commitments.' }, { status: 401 });
+    }
+
+    if (scope === 'owner') {
+      const page = await db.pledges.listPage({ limit, cursor, userId: viewer.email });
+      return NextResponse.json(page, {
+        headers: { 'Cache-Control': 'private, max-age=0, s-maxage=15, stale-while-revalidate=30' },
+      });
+    }
+
+    if (scope === 'referee') {
+      const page = await db.pledges.listPage({ limit: 50, cursor });
+      const pledges = page.pledges.filter(
+        (pledge) => viewer.role === 'admin' || pledge.referee_email.toLowerCase() === viewer.email
+      );
+      return NextResponse.json({ pledges, nextCursor: null }, {
+        headers: { 'Cache-Control': 'private, max-age=0, s-maxage=15, stale-while-revalidate=30' },
+      });
+    }
+
+    return NextResponse.json({ error: 'Unknown commitment scope.' }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message }, { status: 500 });
   }

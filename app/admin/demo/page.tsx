@@ -38,7 +38,7 @@ export default function AdminDemoConsolePage() {
             Test harness to accelerate demo clock, populate sample pledges, and evaluate referee flows.
           </p>
         </div>
-        <Link href="/" className="text-xs font-bold text-[#0070ba] hover:underline">
+        <Link href="/dashboard" className="text-xs font-bold text-[#0070ba] hover:underline">
           ← Back to User Dashboard
         </Link>
       </div>

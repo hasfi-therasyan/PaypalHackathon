@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 interface CharityOption {
   id: string;
@@ -186,13 +187,17 @@ export default function CreatePledgePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) {
+      setErrorMessage('Please sign in before creating a commitment.');
+      return;
+    }
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
       const response = await fetch('/api/pledges', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({
           goal_type: goalType,
           goal_title: goalTitle,
@@ -202,7 +207,7 @@ export default function CreatePledgePage() {
           beneficiary_name: beneficiaryName,
           beneficiary_paypal_email: beneficiaryEmail,
           referee_email: refereeEmail,
-          user_email: user?.email,
+          user_email: user.email,
         }),
       });
 

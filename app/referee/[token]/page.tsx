@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function RefereeAppealPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, isReady } = useAuth();
   const token = params.token as string;
 
   const [data, setData] = useState<any>(null);
@@ -18,10 +21,18 @@ export default function RefereeAppealPage() {
 
   useEffect(() => {
     async function fetchAppealData() {
+      if (!user) {
+        setError('Sign in with the referee account assigned to this commitment.');
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await fetch(`/api/pledges/${token}`);
+        const res = await fetch(`/api/pledges/${token}`, { headers: accountRequestHeaders(user) });
         if (!res.ok) throw new Error('Invalid or expired referee token.');
         const json = await res.json();
+        if (json.access !== 'referee' && json.access !== 'admin') {
+          throw new Error('This review is reserved for the referee assigned to the commitment.');
+        }
         setData(json);
 
         if (json.pledge.status !== 'APPEAL_WINDOW_OPEN') {
@@ -33,8 +44,8 @@ export default function RefereeAppealPage() {
         setLoading(false);
       }
     }
-    fetchAppealData();
-  }, [token]);
+    if (isReady) fetchAppealData();
+  }, [token, isReady, user]);
 
   async function handleDecision(approved: boolean) {
     if (!note.trim()) {
@@ -48,7 +59,7 @@ export default function RefereeAppealPage() {
     try {
       const res = await fetch(`/api/pledges/${token}/appeal`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({ approved, note: note.trim() }),
       });
 
@@ -78,7 +89,7 @@ export default function RefereeAppealPage() {
         <div className="p-6 bg-red-50 border border-red-200 rounded-2xl text-center space-y-3">
           <h2 className="text-base font-bold text-red-700">Token Inactive or Expired</h2>
           <p className="text-sm text-red-600">{error}</p>
-          <Link href="/" className="inline-block px-5 py-2.5 bg-[#0070ba] text-white rounded-xl text-sm font-semibold hover:bg-[#005ea6] transition-colors">
+          <Link href="/dashboard" className="inline-block px-5 py-2.5 bg-[#0070ba] text-white rounded-xl text-sm font-semibold hover:bg-[#005ea6] transition-colors">
             Return to Dashboard
           </Link>
         </div>
@@ -160,9 +171,27 @@ export default function RefereeAppealPage() {
             {proof?.ai_findings_json && (
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm space-y-1">
                 <p className="font-bold text-[#003087]">Automated Findings for Your Consideration:</p>
-                <p className="leading-relaxed text-slate-600">{proof.ai_findings_json.summary}</p>
+                <p className="leading-relaxed text-slate-600">
+                  {proof.ai_findings_json.summary || `Challenge-code reading: ${proof.ai_findings_json.code_read || 'not detected'} (${Math.round((proof.ai_findings_json.ocr_confidence || 0) * 100)}% confidence).`}
+                </p>
               </div>
             )}
+
+            {data.proofImageUrl ? (
+              <figure className="space-y-2">
+                <figcaption className="text-xs font-bold text-slate-700">Submitted evidence photo</figcaption>
+                <img
+                  src={data.proofImageUrl}
+                  alt={`Evidence submitted for ${pledge.title}`}
+                  className="w-full max-h-[28rem] object-contain bg-slate-100 border border-slate-200 rounded-xl"
+                />
+                <p className="text-[11px] text-slate-500">Private evidence visible only to the assigned referee.</p>
+              </figure>
+            ) : proof?.kind === 'photo' ? (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                The photo is unavailable right now. Please refresh; if it persists, check the private proof-storage configuration.
+              </p>
+            ) : null}
           </div>
 
           {/* Decision Form */}

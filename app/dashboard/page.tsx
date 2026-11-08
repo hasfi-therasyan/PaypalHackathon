@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function UserDashboardPage() {
-  const { user } = useAuth();
+  const { user, isReady } = useAuth();
   const [pledges, setPledges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -13,8 +14,15 @@ export default function UserDashboardPage() {
 
   useEffect(() => {
     async function loadPledges() {
+      if (!user) {
+        setPledges([]);
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await fetch('/api/pledges');
+        const res = await fetch('/api/pledges?scope=owner', {
+          headers: accountRequestHeaders(user),
+        });
         if (res.ok) {
           const data = await res.json();
           setPledges(data.pledges || []);
@@ -25,8 +33,8 @@ export default function UserDashboardPage() {
         setLoading(false);
       }
     }
-    loadPledges();
-  }, []);
+    if (isReady) loadPledges();
+  }, [isReady, user]);
 
   const filteredPledges = pledges.filter((p) => {
     if (filter === 'active') {
@@ -50,6 +58,7 @@ export default function UserDashboardPage() {
   const totalReleasedCents = pledges
     .filter((p) => p.status === 'SUCCEEDED')
     .reduce((sum, p) => sum + (p.stake_cents || 0), 0);
+  const appointedReferee = activePledges[0]?.referee_email || 'No active referee assigned';
 
   const statusStyles: Record<string, { label: string; bg: string; text: string }> = {
     RUBRIC_LOCKED: {
@@ -146,7 +155,7 @@ export default function UserDashboardPage() {
             <span className="text-[#64748b] block font-medium">Appointed Friend Referee</span>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-base font-bold text-slate-900 truncate">
-                referee@example.com
+                {appointedReferee}
               </span>
             </div>
             <span className="text-[11px] text-[#64748b] mt-1 block">

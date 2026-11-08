@@ -5,10 +5,13 @@ import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function CheckoutPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { id } = params;
+  const { user, isReady } = useAuth();
   const [pledge, setPledge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [authorizing, setAuthorizing] = useState(false);
@@ -18,9 +21,14 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     async function loadData() {
+      if (!user) {
+        setErrorMsg('Sign in to authorize this commitment.');
+        setLoading(false);
+        return;
+      }
       try {
         const [pledgeRes, balanceRes] = await Promise.all([
-          fetch(`/api/pledges/${id}`),
+          fetch(`/api/pledges/${id}`, { headers: accountRequestHeaders(user) }),
           fetch('/api/paypal/userinfo'),
         ]);
 
@@ -43,8 +51,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
         setLoading(false);
       }
     }
-    loadData();
-  }, [id]);
+    if (isReady) loadData();
+  }, [id, isReady, user]);
 
   const stakeDollars = pledge ? pledge.stake_cents / 100 : 35;
   const stakeAmount = stakeDollars.toFixed(2);
@@ -57,7 +65,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     try {
       const res = await fetch(`/api/pledges/${id}/authorize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({ source: 'sandbox_balance' }),
       });
       const data = await res.json();
@@ -80,7 +88,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   };
 
   const createOrder = async () => {
-    const res = await fetch(`/api/pledges/${id}/order`, { method: 'POST' });
+    const res = await fetch(`/api/pledges/${id}/order`, {
+      method: 'POST',
+      headers: accountRequestHeaders(user),
+    });
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || 'Failed to initialize PayPal order');
@@ -94,7 +105,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     try {
       const res = await fetch(`/api/pledges/${id}/authorize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({ orderId: data.orderID }),
       });
       const resData = await res.json();

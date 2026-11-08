@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function RefereeDashboardPage() {
-  const { user } = useAuth();
+  const { user, isReady } = useAuth();
   const [pledges, setPledges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionModal, setActionModal] = useState<{ pledge: any; approved: boolean } | null>(null);
@@ -14,8 +15,15 @@ export default function RefereeDashboardPage() {
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const fetchPledges = async () => {
+    if (!user) {
+      setPledges([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch('/api/pledges');
+      const res = await fetch('/api/pledges?scope=referee', {
+        headers: accountRequestHeaders(user),
+      });
       if (res.ok) {
         const data = await res.json();
         setPledges(data.pledges || []);
@@ -28,17 +36,12 @@ export default function RefereeDashboardPage() {
   };
 
   useEffect(() => {
-    fetchPledges();
-  }, []);
+    if (isReady) fetchPledges();
+  }, [isReady, user?.email, user?.role]);
 
-  // Filter pledges where this referee is assigned or show all pledges requiring appeal/referee review
+  // The server returns only this referee's assignments (or all records for an admin).
   const refereeEmail = user?.email || 'referee@example.com';
-  const assignedPledges = pledges.filter(
-    (p) =>
-      p.referee_email?.toLowerCase() === refereeEmail.toLowerCase() ||
-      p.status === 'APPEAL_WINDOW_OPEN' ||
-      user?.role === 'admin'
-  );
+  const assignedPledges = pledges;
 
   const handleDecisionSubmit = async () => {
     if (!actionModal) return;
@@ -53,7 +56,7 @@ export default function RefereeDashboardPage() {
     try {
       const res = await fetch(`/api/pledges/${actionModal.pledge.id}/appeal`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({
           approved: actionModal.approved,
           note: refereeNote,
@@ -168,7 +171,7 @@ export default function RefereeDashboardPage() {
                       </div>
 
                       <h3 className="text-base font-bold text-slate-900">
-                        <Link href={`/pledges/${p.id}`} className="hover:text-[#0070ba]">
+                        <Link href={`/referee/${p.id}`} className="hover:text-[#0070ba]">
                           {p.title}
                         </Link>
                       </h3>
@@ -191,28 +194,15 @@ export default function RefereeDashboardPage() {
 
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/pledges/${p.id}`}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors"
+                        href={`/referee/${p.id}`}
+                        className={`px-3.5 py-2 font-bold text-xs rounded-lg transition-colors ${
+                          needsDecision
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
                       >
-                        Inspect Ledger & Proof
+                        {needsDecision ? 'Review evidence & decide' : 'View assignment'}
                       </Link>
-
-                      {needsDecision && (
-                        <>
-                          <button
-                            onClick={() => setActionModal({ pledge: p, approved: true })}
-                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors"
-                          >
-                            ✓ Pass & Release Hold
-                          </button>
-                          <button
-                            onClick={() => setActionModal({ pledge: p, approved: false })}
-                            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors"
-                          >
-                            ✕ Deny & Capture
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>

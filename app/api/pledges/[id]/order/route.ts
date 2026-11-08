@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/app/lib/db';
 import { createAuthorizeOrder } from '@/app/lib/paypal/orders';
 import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
+import { getViewer, requirePledgeAccess } from '@/app/lib/access';
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +12,9 @@ export async function POST(
     const pledge = await db.pledges.get(params.id);
     if (!pledge) {
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
+    }
+    if (!requirePledgeAccess(pledge, getViewer(request), ['owner', 'admin']).allowed) {
+      return NextResponse.json({ error: 'Only the commitment creator can authorize this hold.' }, { status: 403 });
     }
 
     if (pledge.status !== 'RUBRIC_LOCKED') {

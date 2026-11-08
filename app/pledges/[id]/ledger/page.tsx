@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function LedgerTimelinePage() {
   const params = useParams();
   const pledgeId = params.id as string;
+  const { user, isReady } = useAuth();
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -14,8 +17,15 @@ export default function LedgerTimelinePage() {
   const [error, setError] = useState<string | null>(null);
 
   async function loadLedger() {
+    if (!user) {
+      setError('Sign in to view this ledger.');
+      setLoading(false);
+      return;
+    }
     try {
-        const res = await fetch(`/api/pledges/${pledgeId}?includeLedger=1`);
+        const res = await fetch(`/api/pledges/${pledgeId}?includeLedger=1`, {
+          headers: accountRequestHeaders(user),
+        });
       if (!res.ok) throw new Error('Failed to load ledger.');
       const json = await res.json();
       setData(json);
@@ -27,8 +37,8 @@ export default function LedgerTimelinePage() {
   }
 
   useEffect(() => {
-    loadLedger();
-  }, [pledgeId]);
+    if (isReady) loadLedger();
+  }, [pledgeId, isReady, user]);
 
   async function handleSimulateTamper() {
     if (!confirm('This will SIMULATE an unauthorized database modification and demonstrate how the SHA-256 chain verification instantly flags the broken hash. Continue?')) {
@@ -36,7 +46,10 @@ export default function LedgerTimelinePage() {
     }
     setTampering(true);
     try {
-      const res = await fetch(`/api/ledger/${pledgeId}/tamper`, { method: 'POST' });
+      const res = await fetch(`/api/ledger/${pledgeId}/tamper`, {
+        method: 'POST',
+        headers: accountRequestHeaders(user),
+      });
       const tamperResult = await res.json();
       if (tamperResult.verification) {
         setData((prev: any) => ({
@@ -67,7 +80,7 @@ export default function LedgerTimelinePage() {
         <div className="p-6 bg-white border border-rose-200 rounded-2xl text-center space-y-3">
           <h2 className="text-base font-bold text-rose-800">Ledger Error</h2>
           <p className="text-xs text-rose-600">{error || 'Ledger records not found.'}</p>
-          <Link href="/" className="inline-block px-4 py-2 bg-[#0070ba] text-white rounded-xl text-xs font-bold">
+          <Link href="/dashboard" className="inline-block px-4 py-2 bg-[#0070ba] text-white rounded-xl text-xs font-bold">
             Back to Dashboard
           </Link>
         </div>
@@ -101,13 +114,15 @@ export default function LedgerTimelinePage() {
           >
             ← Commitment View
           </Link>
-          <button
-            onClick={handleSimulateTamper}
-            disabled={tampering}
-            className="px-3.5 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-xl transition-colors"
-          >
-            {tampering ? 'Simulating...' : '⚡ Simulate Forgery Tamper'}
-          </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={handleSimulateTamper}
+              disabled={tampering}
+              className="px-3.5 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-xl transition-colors"
+            >
+              {tampering ? 'Simulating...' : '⚡ Simulate Forgery Tamper'}
+            </button>
+          )}
         </div>
       </div>
 

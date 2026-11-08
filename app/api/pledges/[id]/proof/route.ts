@@ -8,6 +8,8 @@ import { determineVerdict } from '@/app/lib/referee/verdict';
 import { voidAuthorization } from '@/app/lib/paypal/authorizations';
 import { compressAndStoreProofImage, ProofUploadError } from '@/app/lib/proofs/storage';
 import { transitionOrThrow } from '@/app/lib/state/transitions';
+import { getViewer, requirePledgeAccess } from '@/app/lib/access';
+import { analyzeProofPhoto } from '@/app/lib/referee/vision';
 
 export async function POST(
   request: NextRequest,
@@ -17,6 +19,9 @@ export async function POST(
     const pledge = await db.pledges.get(params.id);
     if (!pledge) {
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
+    }
+    if (!requirePledgeAccess(pledge, getViewer(request), ['owner', 'admin']).allowed) {
+      return NextResponse.json({ error: 'Only the commitment creator can submit proof.' }, { status: 403 });
     }
 
     if (pledge.status !== 'ACTIVE') {
@@ -99,13 +104,33 @@ export async function POST(
         min_confidence: pledge.rubric_json.min_confidence || 0.70,
       };
 
-      const photoAnalysis: PhotoAnalysisResult = {
-        code_read: body.ocr_code,
-        scene_elements: [],
-        suspicious_signs: ['Final decision reserved for the nominated referee.'],
-        element_confidences: {},
-        confidence: Math.max(0, Math.min(1, body.ocr_confidence)),
-      };
+      let photoAnalysis: PhotoAnalysisResult;
+      try {
+        // A configured vision service evaluates the private, short-lived URL.
+        // Browser OCR remains a useful fallback and never decides settlement.
+        photoAnalysis = await analyzeProofPhoto({
+          storagePath: storedImage.path,
+          expectedCode,
+          requiredSceneElements: rubric.required_scene_elements,
+        });
+      } catch (error) {
+        console.warn('Vision analysis unavailable; retaining OCR evidence for referee review.', error);
+        photoAnalysis = {
+          code_read: '',
+          scene_elements: [],
+          suspicious_signs: ['Vision analysis was unavailable; referee review is required.'],
+          element_confidences: {},
+          confidence: 0,
+        };
+      }
+
+      if (!photoAnalysis.code_read && body.ocr_code) {
+        photoAnalysis.code_read = body.ocr_code;
+      }
+      photoAnalysis.confidence = Math.max(
+        photoAnalysis.confidence || 0,
+        Math.max(0, Math.min(1, body.ocr_confidence))
+      );
 
       const evaluation = evaluatePhotoProof(expectedCode, photoAnalysis, rubric);
       // OCR is an evidentiary signal, not an automated verdict. A trusted
@@ -119,9 +144,13 @@ export async function POST(
         image: storedImage,
       };
       aiFindingsJson = {
-        method: 'on_device_tesseract_ocr',
+        method: process.env.VISION_REFEREE_URL ? 'vision_service_with_ocr_fallback' : 'on_device_tesseract_ocr',
         code_read: photoAnalysis.code_read,
         ocr_confidence: photoAnalysis.confidence,
+        detected_scene_elements: photoAnalysis.scene_elements,
+        missing_scene_elements: evaluation.missing_elements,
+        suspicious_signs: photoAnalysis.suspicious_signs,
+        summary: evaluation.reasons.join(' '),
         automatic_settlement: false,
       };
       confidence = photoAnalysis.confidence;

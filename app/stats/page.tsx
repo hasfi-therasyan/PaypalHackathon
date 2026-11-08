@@ -77,7 +77,7 @@ export default function ReliabilityStatsPage() {
           </p>
         </div>
         <Link
-          href="/"
+          href="/dashboard"
           className="text-xs font-bold text-[#0070ba] hover:underline"
         >
           ← Return to Dashboard

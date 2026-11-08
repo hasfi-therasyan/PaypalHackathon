@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/app/lib/db';
 import { verifyChain, canonicalJson, GENESIS_HASH, computeEventHash } from '@/app/lib/ledger/chain';
+import { getViewer } from '@/app/lib/access';
 
 /**
  * Admin demo endpoint that SIMULATES a tamper on ledger event #2
@@ -15,6 +16,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (getViewer(request)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access is required for the tamper simulation.' }, { status: 403 });
+  }
   if (process.env.DEMO_MODE !== 'true') {
     return NextResponse.json({ error: 'Tamper simulation is only available in DEMO_MODE.' }, { status: 403 });
   }

@@ -8,7 +8,7 @@ const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const MAX_DIMENSION = 1920;
 const ACCEPTED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function getProofStorageClient() {
+export function getProofStorageClient() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

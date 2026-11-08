@@ -3,11 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function ApproveHoldPage() {
   const params = useParams();
   const router = useRouter();
   const pledgeId = params.id as string;
+  const { user, isReady } = useAuth();
 
   const [pledge, setPledge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -18,8 +21,13 @@ export default function ApproveHoldPage() {
 
   useEffect(() => {
     async function fetchPledge() {
+      if (!user) {
+        setError('Sign in to authorize this commitment.');
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await fetch(`/api/pledges/${pledgeId}`);
+        const res = await fetch(`/api/pledges/${pledgeId}`, { headers: accountRequestHeaders(user) });
         if (!res.ok) throw new Error('Pledge not found');
         const data = await res.json();
         setPledge(data.pledge);
@@ -29,8 +37,8 @@ export default function ApproveHoldPage() {
         setLoading(false);
       }
     }
-    fetchPledge();
-  }, [pledgeId]);
+    if (isReady) fetchPledge();
+  }, [pledgeId, isReady, user]);
 
   // Load PayPal JavaScript SDK with intent=authorize
   useEffect(() => {
@@ -66,7 +74,10 @@ export default function ApproveHoldPage() {
     paypal.Buttons({
       createOrder: async () => {
         try {
-          const res = await fetch(`/api/pledges/${pledgeId}/order`, { method: 'POST' });
+          const res = await fetch(`/api/pledges/${pledgeId}/order`, {
+            method: 'POST',
+            headers: accountRequestHeaders(user),
+          });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Failed to create order');
           return data.orderId;
@@ -81,7 +92,7 @@ export default function ApproveHoldPage() {
         try {
           const res = await fetch(`/api/pledges/${pledgeId}/authorize`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
             body: JSON.stringify({ orderId: data.orderID }),
           });
           const resData = await res.json();
@@ -98,7 +109,7 @@ export default function ApproveHoldPage() {
         setError('PayPal authorization encountered an issue.');
       },
     }).render('#paypal-button-container');
-  }, [sdkReady, pledge, pledgeId, router]);
+  }, [sdkReady, pledge, pledgeId, router, user]);
 
   function handleCopyCreds() {
     navigator.clipboard.writeText('Email: sb-buyer@personal.example.com\nPassword: SandboxPassword123!');
@@ -112,7 +123,7 @@ export default function ApproveHoldPage() {
     try {
       const res = await fetch(`/api/pledges/${pledgeId}/authorize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({ source: 'sandbox_balance' }),
       });
       const data = await res.json();
@@ -287,7 +298,7 @@ export default function ApproveHoldPage() {
           )}
 
           <div className="text-center">
-            <Link href="/" className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+            <Link href="/dashboard" className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
               Cancel and return to dashboard
             </Link>
           </div>

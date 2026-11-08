@@ -1,11 +1,15 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function VerdictPage() {
   const params = useParams();
+  const router = useRouter();
+  const { user, isReady } = useAuth();
   const pledgeId = params.id as string;
 
   const [data, setData] = useState<any>(null);
@@ -14,10 +18,19 @@ export default function VerdictPage() {
 
   useEffect(() => {
     async function fetchVerdict() {
+      if (!user) {
+        setError('Sign in to view this commitment.');
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await fetch(`/api/pledges/${pledgeId}`);
+        const res = await fetch(`/api/pledges/${pledgeId}`, { headers: accountRequestHeaders(user) });
         if (!res.ok) throw new Error('Failed to load verdict.');
         const json = await res.json();
+        if (json.access === 'owner') {
+          router.replace(`/pledges/${pledgeId}`);
+          return;
+        }
         setData(json);
       } catch (err: any) {
         setError(err.message);
@@ -25,8 +38,8 @@ export default function VerdictPage() {
         setLoading(false);
       }
     }
-    fetchVerdict();
-  }, [pledgeId]);
+    if (isReady) fetchVerdict();
+  }, [pledgeId, isReady, user, router]);
 
   if (loading) {
     return (
@@ -42,7 +55,7 @@ export default function VerdictPage() {
         <div className="p-6 bg-white border border-rose-200 rounded-2xl text-center space-y-3">
           <h2 className="text-base font-bold text-rose-800">Error</h2>
           <p className="text-xs text-rose-600">{error || 'Pledge not found'}</p>
-          <Link href="/" className="inline-block px-4 py-2 bg-[#0070ba] text-white rounded-xl text-xs font-bold">
+          <Link href="/dashboard" className="inline-block px-4 py-2 bg-[#0070ba] text-white rounded-xl text-xs font-bold">
             Back to Dashboard
           </Link>
         </div>

@@ -5,10 +5,22 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { compressProofImageInBrowser } from '@/app/lib/proofs/compress-client';
 import { recognizeChallengeCode, type OcrResult } from '@/app/lib/proofs/ocr-client';
+import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
+
+function Requirement({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-3 bg-[#f8fafc] border border-slate-200 rounded-xl">
+      <span className="block text-[11px] font-semibold text-slate-500">{label}</span>
+      <span className="block mt-1 font-bold text-slate-800 break-words">{value}</span>
+    </div>
+  );
+}
 
 export default function PledgeDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, isReady } = useAuth();
   const pledgeId = params.id as string;
 
   const [data, setData] = useState<any>(null);
@@ -29,8 +41,13 @@ export default function PledgeDetailPage() {
 
   useEffect(() => {
     async function fetchPledge() {
+      if (!user) {
+        setError('Sign in to view this commitment.');
+        setLoading(false);
+        return;
+      }
       try {
-        const res = await fetch(`/api/pledges/${pledgeId}`);
+        const res = await fetch(`/api/pledges/${pledgeId}`, { headers: accountRequestHeaders(user) });
         if (!res.ok) throw new Error('Failed to load pledge.');
         const json = await res.json();
         setData(json);
@@ -46,8 +63,8 @@ export default function PledgeDetailPage() {
         setLoading(false);
       }
     }
-    fetchPledge();
-  }, [pledgeId]);
+    if (isReady) fetchPledge();
+  }, [pledgeId, isReady, user]);
 
   async function handleProofSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,14 +90,14 @@ export default function PledgeDetailPage() {
 
       const res = await fetch(`/api/pledges/${pledgeId}/proof`, {
         method: 'POST',
-        headers,
+        headers: { ...headers, ...accountRequestHeaders(user) },
         body,
       });
 
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || 'Failed to submit proof.');
 
-      router.push(`/pledges/${pledgeId}/verdict`);
+      router.replace(`/pledges/${pledgeId}`);
     } catch (err: any) {
       setError(err.message);
       setSubmittingProof(false);
@@ -116,12 +133,15 @@ export default function PledgeDetailPage() {
     }
     setCancelling(true);
     try {
-      const res = await fetch(`/api/pledges/${pledgeId}/cancel`, { method: 'POST' });
+      const res = await fetch(`/api/pledges/${pledgeId}/cancel`, {
+        method: 'POST',
+        headers: accountRequestHeaders(user),
+      });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Grace cancellation failed.');
       }
-      router.push('/');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message);
       setCancelling(false);
@@ -142,7 +162,7 @@ export default function PledgeDetailPage() {
         <div className="p-6 bg-white border border-rose-200 rounded-2xl text-center space-y-3">
           <h2 className="text-base font-bold text-rose-800">Error</h2>
           <p className="text-xs text-rose-600">{error}</p>
-          <Link href="/" className="inline-block px-4 py-2 bg-[#0070ba] text-white rounded-xl text-xs font-bold">
+          <Link href="/dashboard" className="inline-block px-4 py-2 bg-[#0070ba] text-white rounded-xl text-xs font-bold">
             Back to Dashboard
           </Link>
         </div>
@@ -158,7 +178,7 @@ export default function PledgeDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-[#e2e8f0]">
         <div>
-          <Link href="/" className="text-xs font-semibold text-[#0070ba] hover:underline mb-1 inline-block">
+          <Link href="/dashboard" className="text-xs font-semibold text-[#0070ba] hover:underline mb-1 inline-block">
             ← Return to Dashboard
           </Link>
           <div className="flex items-center gap-2">
@@ -210,9 +230,23 @@ export default function PledgeDetailPage() {
               </span>
             </div>
 
-            <pre className="p-4 bg-[#f8fafc] border border-slate-200 rounded-xl font-mono text-xs text-slate-800 overflow-x-auto">
-              {JSON.stringify(pledge.rubric_json, null, 2)}
-            </pre>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {pledge.goal_type === 'github' ? (
+                <>
+                  <Requirement label="Repository" value={pledge.rubric_json?.repo || 'Not specified'} />
+                  <Requirement label="Contributor" value={pledge.rubric_json?.username || 'Not specified'} />
+                  <Requirement label="Minimum commits" value={`${pledge.rubric_json?.min_commits || 0} commits`} />
+                  <Requirement label="Work across" value={`${pledge.rubric_json?.min_distinct_days || 1} day(s)`} />
+                  <Requirement label="Code changed" value={`${pledge.rubric_json?.min_changed_lines || 0}+ lines`} />
+                </>
+              ) : (
+                <>
+                  <Requirement label="Challenge code" value={pledge.rubric_json?.challenge_code || 'Issued after commitment is created'} />
+                  <Requirement label="Your photo must show" value={(pledge.rubric_json?.required_scene_elements || ['laptop', 'notes']).join(', ')} />
+                  <Requirement label="Recognition target" value={`${Math.round((pledge.rubric_json?.min_confidence || 0.7) * 100)}% confidence`} />
+                </>
+              )}
+            </div>
           </div>
 
           {/* Proof Submission Card (If Active) */}
@@ -281,6 +315,16 @@ export default function PledgeDetailPage() {
                   {submittingProof ? 'Uploading proof for referee review...' : 'Submit Photo Proof to Referee'}
                 </button>
               </form>
+            </div>
+          )}
+
+          {pledge.status === 'APPEAL_WINDOW_OPEN' && data.proof && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-xs space-y-2">
+              <h2 className="font-bold text-amber-900">Evidence submitted</h2>
+              <p className="text-amber-800 leading-relaxed">
+                Your proof was sent on {new Date(data.proof.submitted_at).toLocaleString()}. Your nominated referee is reviewing it now; no action is required from you.
+              </p>
+              <p className="text-amber-800">You will see the settlement outcome here when the referee completes the review.</p>
             </div>
           )}
         </div>

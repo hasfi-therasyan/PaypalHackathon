@@ -4,6 +4,7 @@ import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { isWithinGraceCancellation } from '@/app/lib/state/transitions';
 import { voidAuthorization } from '@/app/lib/paypal/authorizations';
 import { transitionOrThrow } from '@/app/lib/state/transitions';
+import { getViewer, requirePledgeAccess } from '@/app/lib/access';
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +14,9 @@ export async function POST(
     const pledge = await db.pledges.get(params.id);
     if (!pledge) {
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
+    }
+    if (!requirePledgeAccess(pledge, getViewer(request), ['owner', 'admin']).allowed) {
+      return NextResponse.json({ error: 'Only the commitment creator can cancel this hold.' }, { status: 403 });
     }
 
     if (pledge.status !== 'ACTIVE') {

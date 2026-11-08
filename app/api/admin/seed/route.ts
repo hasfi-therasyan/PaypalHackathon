@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, PledgeRecord } from '@/app/lib/db';
 import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
+import { getViewer } from '@/app/lib/access';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  if (getViewer(request)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access is required.' }, { status: 403 });
+  }
   if (process.env.DEMO_MODE !== 'true') {
     return NextResponse.json({ error: 'Demo seeding is disabled outside DEMO_MODE.' }, { status: 403 });
   }

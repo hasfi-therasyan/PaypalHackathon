@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { accountRequestHeaders } from './access';
 
 export type UserRole = 'admin' | 'referee' | 'user';
 
@@ -13,6 +14,7 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  isReady: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   signup: (email: string, name: string, password?: string) => Promise<boolean>;
   logout: () => void;
@@ -41,6 +43,7 @@ const DEFAULT_ACCOUNTS: Record<string, { name: string; role: UserRole; password:
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  isReady: false,
   login: async () => false,
   signup: async () => false,
   logout: () => {},
@@ -50,6 +53,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isReady, setIsReady] = useState(false);
   const [usersList, setUsersList] = useState<Record<string, { name: string; role: UserRole; password?: string }>>(DEFAULT_ACCOUNTS);
 
   // Load registry and session from localStorage
@@ -68,6 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       console.warn('Auth state load error:', e);
+    } finally {
+      setIsReady(true);
     }
   }, []);
 
@@ -77,7 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function checkRefereeAssignment() {
       try {
-        const res = await fetch('/api/pledges');
+          const res = await fetch('/api/pledges?scope=referee', {
+            headers: accountRequestHeaders(user),
+          });
         if (res.ok) {
           const data = await res.json();
           const pledges = data.pledges || [];
@@ -105,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     checkRefereeAssignment();
-  }, [user?.email]);
+  }, [user?.email, user?.role]);
 
   const login = async (email: string, password?: string): Promise<boolean> => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -189,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, usersList, assignRole }}>
+      <AuthContext.Provider value={{ user, isReady, login, signup, logout, usersList, assignRole }}>
       {children}
     </AuthContext.Provider>
   );

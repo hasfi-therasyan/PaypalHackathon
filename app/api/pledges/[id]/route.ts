@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/app/lib/db';
 import { verifyChain } from '@/app/lib/ledger/chain';
+import { getViewer, requirePledgeAccess } from '@/app/lib/access';
+import { getProofStorageClient } from '@/app/lib/proofs/storage';
 
 export async function GET(
   request: NextRequest,
@@ -12,6 +14,11 @@ export async function GET(
     if (!pledge) {
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
     }
+    const viewer = getViewer(request);
+    const { allowed, access } = requirePledgeAccess(pledge, viewer, ['owner', 'referee', 'admin']);
+    if (!allowed) {
+      return NextResponse.json({ error: 'You do not have access to this commitment.' }, { status: 403 });
+    }
 
     const [proof, verdicts, chainVerification] = await Promise.all([
       db.proofs.getByPledge(params.id),
@@ -19,10 +26,31 @@ export async function GET(
       includeLedger ? verifyChain(params.id) : Promise.resolve(null),
     ]);
 
+    let proofImageUrl: string | null = null;
+    if (proof?.storage_path && (access === 'referee' || access === 'admin')) {
+      try {
+        const { data } = await getProofStorageClient()
+          .storage
+          .from('proofs')
+          .createSignedUrl(proof.storage_path, 10 * 60);
+        proofImageUrl = data?.signedUrl || null;
+      } catch {
+        // The review can still proceed from the stored signals when Storage is unavailable.
+      }
+    }
+
+    // A commitment creator sees only progress after submitting evidence. The
+    // private image and detailed referee findings are reserved for the referee.
+    const viewerProof = access === 'owner' && proof
+      ? { submitted_at: proof.submitted_at, kind: proof.kind, confidence: proof.confidence }
+      : proof;
+
     return NextResponse.json({
       pledge,
-      proof,
-      verdicts,
+      proof: viewerProof,
+      verdicts: access === 'owner' ? [] : verdicts,
+      access,
+      proofImageUrl,
       ledger: {
         loaded: includeLedger,
         valid: chainVerification?.valid ?? null,

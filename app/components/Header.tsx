@@ -94,7 +94,7 @@ export function Header() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo & Brand */}
-          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+          <Link href={user ? '/dashboard' : '/'} className="flex items-center gap-2.5 group shrink-0">
             <div className="w-9 h-9 rounded-xl bg-[#0070ba] text-white flex items-center justify-center font-bold text-lg shadow-xs group-hover:bg-[#003087] transition-colors">
               P
             </div>

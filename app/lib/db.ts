@@ -4,6 +4,36 @@ const rawUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseUrl = rawUrl && rawUrl.startsWith('http') ? rawUrl : 'https://placeholder.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'placeholder_anon_key';
 
+// Never make a network request to the placeholder client.  The app keeps a
+// memory-backed demo store, so an absent or malformed Supabase configuration
+// should be instant rather than waiting for a DNS/network timeout.
+export const hasSupabasePersistence = Boolean(
+  rawUrl?.startsWith('http') &&
+  !rawUrl.includes('placeholder.supabase.co') &&
+  supabaseKey !== 'placeholder_anon_key'
+);
+
+const DB_REQUEST_TIMEOUT_MS = 1_500;
+
+function withDatabaseTimeout<T>(operation: PromiseLike<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Supabase request timed out')),
+      DB_REQUEST_TIMEOUT_MS
+    );
+    Promise.resolve(operation).then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
 // Demo-safe Supabase client: if placeholder/invalid, calls fall back to memoryStore
 export const supabase: SupabaseClient = createClient(
   supabaseUrl,
@@ -99,8 +129,8 @@ export const db = {
   pledges: {
     async create(pledge: PledgeRecord): Promise<PledgeRecord> {
       memoryStore.pledges.set(pledge.id, { ...pledge });
-      try {
-        const { data, error } = await supabase.from('pledges').insert([pledge]).select().single();
+      if (hasSupabasePersistence) try {
+        const { data, error } = await withDatabaseTimeout(supabase.from('pledges').insert([pledge]).select().single());
         if (!error && data) return data as PledgeRecord;
       } catch (e) {
         console.warn('Supabase insert fallback to memory:', e);
@@ -109,11 +139,15 @@ export const db = {
     },
 
     async get(id: string): Promise<PledgeRecord | null> {
-      try {
-        const { data, error } = await supabase.from('pledges').select('*').eq('id', id).maybeSingle();
-        if (!error && data) return data as PledgeRecord;
-      } catch (e) {
-        // fallback
+      if (hasSupabasePersistence) {
+        try {
+          const { data, error } = await withDatabaseTimeout(
+            supabase.from('pledges').select('*').eq('id', id).maybeSingle()
+          );
+          if (!error && data) return data as PledgeRecord;
+        } catch {
+          // Fall through to the local demo store without keeping the page loading.
+        }
       }
       return memoryStore.pledges.get(id) || null;
     },
@@ -124,13 +158,13 @@ export const db = {
         const updated = { ...existing, ...updates, updated_at: new Date().toISOString() };
         memoryStore.pledges.set(id, updated);
       }
-      try {
-        const { data, error } = await supabase
+      if (hasSupabasePersistence) try {
+        const { data, error } = await withDatabaseTimeout(supabase
           .from('pledges')
           .update({ ...updates, updated_at: new Date().toISOString() })
           .eq('id', id)
           .select()
-          .maybeSingle();
+          .maybeSingle());
         if (!error && data) return data as PledgeRecord;
       } catch (e) {
         // fallback
@@ -139,8 +173,8 @@ export const db = {
     },
 
     async list(): Promise<PledgeRecord[]> {
-      try {
-        const { data, error } = await supabase.from('pledges').select('*').order('created_at', { ascending: false });
+      if (hasSupabasePersistence) try {
+        const { data, error } = await withDatabaseTimeout(supabase.from('pledges').select('*').order('created_at', { ascending: false }));
         if (!error && data && data.length > 0) return data as PledgeRecord[];
       } catch (e) {
         // fallback
@@ -152,7 +186,7 @@ export const db = {
 
     async listPage(options: { limit?: number; cursor?: string | null; userId?: string } = {}): Promise<PledgePage> {
       const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
-      try {
+      if (hasSupabasePersistence) try {
         let query = supabase
           .from('pledges')
           .select('id,user_id,title,goal_type,stake_cents,currency,starts_at,ends_at,appeal_ends_at,status,beneficiary_name,referee_email,paypal_authorization_id,created_at,updated_at')
@@ -160,7 +194,7 @@ export const db = {
           .limit(limit + 1);
         if (options.userId) query = query.eq('user_id', options.userId);
         if (options.cursor) query = query.lt('created_at', options.cursor);
-        const { data, error } = await query;
+        const { data, error } = await withDatabaseTimeout(query);
         if (!error && data) {
           const hasNext = data.length > limit;
           const pledges = data.slice(0, limit) as PledgeRecord[];
@@ -179,10 +213,10 @@ export const db = {
     },
 
     async listDue(nowIso: string): Promise<PledgeRecord[]> {
-      try {
+      if (hasSupabasePersistence) try {
         const [active, appeals] = await Promise.all([
-          supabase.from('pledges').select('*').eq('status', 'ACTIVE').lte('ends_at', nowIso),
-          supabase.from('pledges').select('*').eq('status', 'APPEAL_WINDOW_OPEN').lte('appeal_ends_at', nowIso),
+          withDatabaseTimeout(supabase.from('pledges').select('*').eq('status', 'ACTIVE').lte('ends_at', nowIso)),
+          withDatabaseTimeout(supabase.from('pledges').select('*').eq('status', 'APPEAL_WINDOW_OPEN').lte('appeal_ends_at', nowIso)),
         ]);
         if (!active.error && !appeals.error) {
           return [...(active.data || []), ...(appeals.data || [])] as PledgeRecord[];
@@ -198,12 +232,12 @@ export const db = {
     },
 
     async reliability(userId: string): Promise<{ successes: number; failures: number }> {
-      try {
-        const { data, error } = await supabase
+      if (hasSupabasePersistence) try {
+        const { data, error } = await withDatabaseTimeout(supabase
           .from('pledges')
           .select('status')
           .eq('user_id', userId)
-          .in('status', ['SUCCEEDED', 'CAPTURED', 'PAID_OUT']);
+          .in('status', ['SUCCEEDED', 'CAPTURED', 'PAID_OUT']));
         if (!error && data) {
           return {
             successes: data.filter((pledge) => pledge.status === 'SUCCEEDED').length,
@@ -224,15 +258,17 @@ export const db = {
   proofs: {
     async create(proof: ProofRecord): Promise<ProofRecord> {
       memoryStore.proofs.set(proof.pledge_id, proof);
-      try {
-        await supabase.from('proofs').insert([proof]);
+      if (hasSupabasePersistence) try {
+        await withDatabaseTimeout(supabase.from('proofs').insert([proof]));
       } catch (e) {}
       return proof;
     },
 
     async getByPledge(pledgeId: string): Promise<ProofRecord | null> {
-      try {
-        const { data } = await supabase.from('proofs').select('*').eq('pledge_id', pledgeId).maybeSingle();
+      if (hasSupabasePersistence) try {
+        const { data } = await withDatabaseTimeout(
+          supabase.from('proofs').select('*').eq('pledge_id', pledgeId).maybeSingle()
+        );
         if (data) return data as ProofRecord;
       } catch (e) {}
       return memoryStore.proofs.get(pledgeId) || null;
@@ -244,19 +280,19 @@ export const db = {
       const list = memoryStore.verdicts.get(verdict.pledge_id) || [];
       list.push(verdict);
       memoryStore.verdicts.set(verdict.pledge_id, list);
-      try {
-        await supabase.from('verdicts').insert([verdict]);
+      if (hasSupabasePersistence) try {
+        await withDatabaseTimeout(supabase.from('verdicts').insert([verdict]));
       } catch (e) {}
       return verdict;
     },
 
     async getByPledge(pledgeId: string): Promise<VerdictRecord[]> {
-      try {
-        const { data } = await supabase
+      if (hasSupabasePersistence) try {
+        const { data } = await withDatabaseTimeout(supabase
           .from('verdicts')
           .select('*')
           .eq('pledge_id', pledgeId)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false }));
         if (data && data.length > 0) return data as VerdictRecord[];
       } catch (e) {}
       return (memoryStore.verdicts.get(pledgeId) || []).slice().reverse();
@@ -265,12 +301,12 @@ export const db = {
 
   ledger: {
     async listByPledge(pledgeId: string): Promise<LedgerEventRecord[]> {
-      try {
-        const { data } = await supabase
+      if (hasSupabasePersistence) try {
+        const { data } = await withDatabaseTimeout(supabase
           .from('ledger_events')
           .select('*')
           .eq('pledge_id', pledgeId)
-          .order('seq', { ascending: true });
+          .order('seq', { ascending: true }));
         if (data && data.length > 0) return data as LedgerEventRecord[];
       } catch (e) {}
       return (memoryStore.ledgerEvents.get(pledgeId) || []).slice().sort((a, b) => a.seq - b.seq);
@@ -280,8 +316,8 @@ export const db = {
       const list = memoryStore.ledgerEvents.get(event.pledge_id) || [];
       list.push(event);
       memoryStore.ledgerEvents.set(event.pledge_id, list);
-      try {
-        await supabase.from('ledger_events').insert([event]);
+      if (hasSupabasePersistence) try {
+        await withDatabaseTimeout(supabase.from('ledger_events').insert([event]));
       } catch (e) {}
       return event;
     },
@@ -299,12 +335,12 @@ export const db = {
   webhooks: {
     async hasEvent(paypalEventId: string): Promise<boolean> {
       if (memoryStore.webhookEvents.has(paypalEventId)) return true;
-      try {
-        const { data } = await supabase
+      if (hasSupabasePersistence) try {
+        const { data } = await withDatabaseTimeout(supabase
           .from('webhook_events')
           .select('id')
           .eq('paypal_event_id', paypalEventId)
-          .maybeSingle();
+          .maybeSingle());
         return !!data;
       } catch (e) {
         return false;
@@ -313,8 +349,8 @@ export const db = {
 
     async recordEvent(event: WebhookEventRecord): Promise<void> {
       memoryStore.webhookEvents.set(event.paypal_event_id, event);
-      try {
-        await supabase.from('webhook_events').insert([event]);
+      if (hasSupabasePersistence) try {
+        await withDatabaseTimeout(supabase.from('webhook_events').insert([event]));
       } catch (e) {}
     },
   },

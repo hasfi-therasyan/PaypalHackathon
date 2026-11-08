@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
+import { accountRequestHeaders } from '@/app/lib/access';
 
 export default function AdminSuitePage() {
-  const { user, usersList, assignRole } = useAuth();
+  const { user, isReady, usersList, assignRole } = useAuth();
   const [pledges, setPledges] = useState<any[]>([]);
   const [seeding, setSeeding] = useState(false);
   const [clockSpeed, setClockSpeed] = useState(60);
@@ -13,7 +14,9 @@ export default function AdminSuitePage() {
 
   const loadData = async () => {
     try {
-      const res = await fetch('/api/pledges');
+      const res = await fetch('/api/pledges?scope=referee', {
+        headers: accountRequestHeaders(user),
+      });
       if (res.ok) {
         const data = await res.json();
         setPledges(data.pledges || []);
@@ -24,14 +27,17 @@ export default function AdminSuitePage() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (isReady && user?.role === 'admin') loadData();
+  }, [isReady, user]);
 
   const handleSeed = async () => {
     setSeeding(true);
     setStatusMsg(null);
     try {
-      const res = await fetch('/api/admin/seed', { method: 'POST' });
+      const res = await fetch('/api/admin/seed', {
+        method: 'POST',
+        headers: accountRequestHeaders(user),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to seed.');
       setStatusMsg(`Successfully seeded ${data.seeded?.length || 3} realistic pledges.`);

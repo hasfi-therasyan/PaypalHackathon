@@ -5,6 +5,7 @@ import { db } from '@/app/lib/db';
 import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { transitionOrThrow } from '@/app/lib/state/transitions';
 import { deductSandboxBalance, getSandboxBalance } from '@/app/lib/paypal/balance';
+import { getViewer, requirePledgeAccess } from '@/app/lib/access';
 
 /**
  * POST endpoint that authorizes a commitment hold.
@@ -20,6 +21,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const pledge = await db.pledges.get(params.id);
     if (!pledge) {
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
+    }
+    if (!requirePledgeAccess(pledge, getViewer(request), ['owner', 'admin']).allowed) {
+      return NextResponse.json({ error: 'Only the commitment creator can authorize this hold.' }, { status: 403 });
     }
 
     if (pledge.status !== 'RUBRIC_LOCKED') {
