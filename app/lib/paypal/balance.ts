@@ -26,3 +26,4 @@ export function setSandboxBalance(amountDollars: number): number {
   currentSandboxBalance = Math.max(0, parseFloat(amountDollars.toFixed(2)));
   return currentSandboxBalance;
 }
+
