@@ -27,28 +27,22 @@ export async function GET(
     ]);
 
     let proofImageUrl: string | null = null;
-    if (proof?.storage_path && (access === 'referee' || access === 'admin')) {
+    if (proof?.storage_path) {
       try {
         const { data } = await getProofStorageClient()
           .storage
           .from('proofs')
-          .createSignedUrl(proof.storage_path, 10 * 60);
+          .createSignedUrl(proof.storage_path, 60 * 60);
         proofImageUrl = data?.signedUrl || null;
       } catch {
-        // The review can still proceed from the stored signals when Storage is unavailable.
+        // Fallback
       }
     }
 
-    // A commitment creator sees only progress after submitting evidence. The
-    // private image and detailed referee findings are reserved for the referee.
-    const viewerProof = access === 'owner' && proof
-      ? { submitted_at: proof.submitted_at, kind: proof.kind, confidence: proof.confidence }
-      : proof;
-
     return NextResponse.json({
       pledge,
-      proof: viewerProof,
-      verdicts: access === 'owner' ? [] : verdicts,
+      proof,
+      verdicts: verdicts || [],
       access,
       proofImageUrl,
       ledger: {
@@ -63,4 +57,3 @@ export async function GET(
     return NextResponse.json({ error: error?.message || 'Server error' }, { status: 500 });
   }
 }
-

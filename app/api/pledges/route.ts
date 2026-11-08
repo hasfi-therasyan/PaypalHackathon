@@ -6,15 +6,14 @@ import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/
 import { generateChallengeCode } from '@/app/lib/referee/photo';
 import { getViewer } from '@/app/lib/access';
 
-const MAX_STAKE_CENTS = 5000; // $50.00 USD hard limit
-const MIN_STAKE_CENTS = 0;    // Allows $0 practice runs up to $50.00 sandbox holds
+const MIN_STAKE_CENTS = 0;    // Allows from $0.01 cents upwards with no upper limit
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
 
 const CreatePledgeSchema = z.object({
   goal_type: z.enum(['github', 'photo']),
   goal_title: z.string().min(3, 'Goal title must be at least 3 characters'),
   rubric_json: z.record(z.any()),
-  stake_cents: z.number().int().min(MIN_STAKE_CENTS).max(MAX_STAKE_CENTS),
+  stake_cents: z.number().int().min(MIN_STAKE_CENTS), // No upper limit capacity
   beneficiary_name: z.string().min(1, 'Beneficiary name is required'),
   beneficiary_paypal_email: z.string().email('Valid beneficiary PayPal email required'),
   referee_email: z.string().email('Valid referee email required'),

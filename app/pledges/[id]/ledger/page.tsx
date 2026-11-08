@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
+import { SettlementReceiptCard } from '@/app/components/SettlementReceiptCard';
+import { ProofHistoryCard } from '@/app/components/ProofHistoryCard';
 
 export default function LedgerTimelinePage() {
   const params = useParams();
@@ -23,9 +25,9 @@ export default function LedgerTimelinePage() {
       return;
     }
     try {
-        const res = await fetch(`/api/pledges/${pledgeId}?includeLedger=1`, {
-          headers: accountRequestHeaders(user),
-        });
+      const res = await fetch(`/api/pledges/${pledgeId}?includeLedger=1`, {
+        headers: accountRequestHeaders(user),
+      });
       if (!res.ok) throw new Error('Failed to load ledger.');
       const json = await res.json();
       setData(json);
@@ -69,7 +71,8 @@ export default function LedgerTimelinePage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto py-16 text-center text-slate-500 text-xs">
-        Verifying SHA-256 cryptographic chain...
+        <div className="w-8 h-8 rounded-full border-2 border-slate-300 border-t-[#0070ba] animate-spin mx-auto mb-3" />
+        Verifying SHA-256 cryptographic chain &amp; receipts...
       </div>
     );
   }
@@ -88,16 +91,16 @@ export default function LedgerTimelinePage() {
     );
   }
 
-  const { pledge, ledger, tamperNote, tamperMessage } = data;
+  const { pledge, proof, verdicts, proofImageUrl, ledger, tamperNote, tamperMessage } = data;
   const isChainValid = ledger?.valid !== false;
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 space-y-8">
+    <div className="max-w-4xl mx-auto py-4 sm:py-6 px-3 sm:px-4 space-y-6 sm:space-y-8 pb-24 md:pb-8">
       {/* Hallmark Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-[#e2e8f0]">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-[#0070ba]">
-            Audit & Cryptographic Security
+            Audit &amp; Cryptographic Security
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#003087] tracking-tight mt-1">
             Tamper-Evident SHA-256 Ledger
@@ -110,7 +113,7 @@ export default function LedgerTimelinePage() {
         <div className="flex items-center gap-2">
           <Link
             href={`/pledges/${pledgeId}`}
-            className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-[#0070ba] text-xs font-bold rounded-xl transition-colors"
+            className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:text-[#0070ba] text-xs font-bold rounded-xl transition-colors shadow-2xs"
           >
             ← Commitment View
           </Link>
@@ -118,7 +121,7 @@ export default function LedgerTimelinePage() {
             <button
               onClick={handleSimulateTamper}
               disabled={tampering}
-              className="px-3.5 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-xl transition-colors"
+              className="px-3.5 py-2 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-xl transition-colors shadow-2xs"
             >
               {tampering ? 'Simulating...' : '⚡ Simulate Forgery Tamper'}
             </button>
@@ -136,7 +139,7 @@ export default function LedgerTimelinePage() {
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-base bg-white shadow-2xs">
+            <span className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-lg bg-white shadow-2xs shrink-0">
               {isChainValid ? '✓' : '⚠️'}
             </span>
             <div>
@@ -151,7 +154,7 @@ export default function LedgerTimelinePage() {
             </div>
           </div>
 
-          <div className="font-mono text-xs bg-white/80 px-3 py-1.5 rounded-xl border border-current font-bold self-start sm:self-auto">
+          <div className="font-mono text-xs bg-white/90 px-3 py-1.5 rounded-xl border border-current font-bold self-start sm:self-auto">
             Status: {isChainValid ? 'VERIFIED' : 'COMPROMISED'}
           </div>
         </div>
@@ -165,7 +168,23 @@ export default function LedgerTimelinePage() {
         </div>
       )}
 
-      {/* Sealed Rubric Genesis Snapshot */}
+      {/* 1. Official Settlement & Payment Receipt Card */}
+      <SettlementReceiptCard
+        pledge={pledge}
+        proof={proof}
+        verdicts={verdicts}
+        proofImageUrl={proofImageUrl}
+      />
+
+      {/* 2. Submitted Proof Evidence History Card */}
+      <ProofHistoryCard
+        pledge={pledge}
+        proof={proof}
+        proofImageUrl={proofImageUrl}
+        verdicts={verdicts}
+      />
+
+      {/* 3. Sealed Rubric Genesis Snapshot */}
       <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-3">
         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
           <h2 className="text-sm font-bold text-[#003087]">Locked Rubric Genesis (Canonical SHA-256)</h2>
@@ -179,7 +198,7 @@ export default function LedgerTimelinePage() {
         </div>
       </div>
 
-      {/* Chained Events Timeline */}
+      {/* 4. Chained Events Timeline */}
       <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-base font-bold text-slate-900">Event Hash Sequence</h2>
 

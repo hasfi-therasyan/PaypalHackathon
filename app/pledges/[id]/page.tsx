@@ -8,6 +8,8 @@ import { recognizeChallengeCode, type OcrResult } from '@/app/lib/proofs/ocr-cli
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
+import { SettlementReceiptCard } from '@/app/components/SettlementReceiptCard';
+import { ProofHistoryCard } from '@/app/components/ProofHistoryCard';
 
 function Requirement({ label, value }: { label: string; value: string }) {
   return (
@@ -111,7 +113,6 @@ export default function PledgeDetailPage() {
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || 'Failed to submit proof.');
 
-      // Refresh data
       window.location.reload();
     } catch (err: any) {
       setError(err.message);
@@ -142,11 +143,9 @@ export default function PledgeDetailPage() {
         setCompressionNote('Using original image.');
       }
 
-      // Immediately set image so user can submit without delay
       setProofPhoto(imageToUpload);
       setPreparingPhoto(false);
 
-      // Run OCR as non-blocking background check with a 4s timeout
       Promise.race([
         recognizeChallengeCode(imageToUpload),
         new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
@@ -154,9 +153,7 @@ export default function PledgeDetailPage() {
         .then((ocr) => {
           if (ocr) setOcrResult(ocr);
         })
-        .catch(() => {
-          // Non-blocking fallback
-        });
+        .catch(() => {});
     } catch (err: any) {
       console.warn('Photo processing fallback:', err);
       setPreparingPhoto(false);
@@ -245,9 +242,10 @@ export default function PledgeDetailPage() {
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Link
               href={`/pledges/${pledgeId}/ledger`}
-              className="flex-1 sm:flex-initial text-center px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:text-[#0070ba] text-xs font-bold rounded-xl transition-colors shadow-2xs"
+              className="flex-1 sm:flex-initial text-center px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:text-[#0070ba] text-xs font-bold rounded-xl transition-colors shadow-2xs flex items-center justify-center gap-1.5"
             >
-              Inspect SHA-256 Ledger
+              <span>🔍</span>
+              <span>Inspect SHA-256 Ledger &amp; Receipts</span>
             </Link>
 
             {pledge.status === 'ACTIVE' && (
@@ -327,7 +325,7 @@ export default function PledgeDetailPage() {
               </div>
             )}
 
-            {/* Proof Submission Card (If Active) */}
+            {/* Proof Submission Form (Only when sprint is ACTIVE) */}
             {pledge.status === 'ACTIVE' && (
               <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
                 <h2 className="text-base font-bold text-[#003087]">Submit Sprint Proof</h2>
@@ -405,15 +403,21 @@ export default function PledgeDetailPage() {
               </div>
             )}
 
-            {pledge.status === 'APPEAL_WINDOW_OPEN' && data.proof && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 text-xs space-y-2">
-                <h2 className="font-bold text-amber-900">Evidence submitted</h2>
-                <p className="text-amber-800 leading-relaxed">
-                  Your proof was sent on {new Date(data.proof.submitted_at).toLocaleString()}. Your nominated referee is reviewing it now; no action is required from you.
-                </p>
-                <p className="text-amber-800">You will see the settlement outcome here when the referee completes the review.</p>
-              </div>
-            )}
+            {/* Submitted Proof Evidence History Card */}
+            <ProofHistoryCard
+              pledge={pledge}
+              proof={proof}
+              proofImageUrl={data.proofImageUrl}
+              verdicts={verdicts}
+            />
+
+            {/* Official PayPal Settlement Receipt Card */}
+            <SettlementReceiptCard
+              pledge={pledge}
+              proof={proof}
+              verdicts={verdicts}
+              proofImageUrl={data.proofImageUrl}
+            />
           </div>
 
           {/* Sidebar Info (1 col) */}
@@ -445,7 +449,28 @@ export default function PledgeDetailPage() {
                   <span>Expiration:</span>
                   <span className="font-mono text-slate-700">{new Date(pledge.ends_at).toLocaleDateString()}</span>
                 </div>
+                <div className="flex justify-between pt-1 border-t border-slate-100">
+                  <span>Status:</span>
+                  <span className="font-mono font-bold text-[#0070ba]">{pledge.status}</span>
+                </div>
               </div>
+            </div>
+
+            {/* Quick Action Navigation */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+              <span className="font-bold text-slate-800 block">Audit Links</span>
+              <Link
+                href={`/pledges/${pledgeId}/ledger`}
+                className="block p-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-[#0070ba] transition-colors border border-slate-200/80 font-medium text-slate-700"
+              >
+                🔐 Cryptographic SHA-256 Ledger
+              </Link>
+              <Link
+                href={`/stats`}
+                className="block p-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-[#0070ba] transition-colors border border-slate-200/80 font-medium text-slate-700"
+              >
+                📊 AI Stake Recommender &amp; Stats
+              </Link>
             </div>
           </div>
         </div>

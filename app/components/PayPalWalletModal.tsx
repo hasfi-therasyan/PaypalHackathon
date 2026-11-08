@@ -18,6 +18,11 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
   const [loading, setLoading] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
 
+  // Top Up state
+  const [topUpAmount, setTopUpAmount] = useState<string>('50');
+  const [toppingUp, setToppingUp] = useState(false);
+  const [topUpSuccess, setTopUpSuccess] = useState<string | null>(null);
+
   const fetchBalance = async () => {
     setLoading(true);
     try {
@@ -54,6 +59,33 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
     return () => window.removeEventListener('paypal_balance_updated', handleBalanceUpdate);
   }, [isOpen, user]);
 
+  async function handleTopUp(amountToAdd?: number) {
+    const amount = amountToAdd ?? parseFloat(topUpAmount);
+    if (!amount || isNaN(amount) || amount <= 0) return;
+
+    setToppingUp(true);
+    setTopUpSuccess(null);
+    try {
+      const res = await fetch('/api/paypal/userinfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
+        body: JSON.stringify({ action: 'topup', amount }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (typeof data.balance === 'number') setBalance(data.balance);
+        if (typeof data.startingBalance === 'number') setStartingBalance(data.startingBalance);
+        window.dispatchEvent(new CustomEvent('paypal_balance_updated', { detail: data.balance }));
+        setTopUpSuccess(`✓ Successfully added +$${amount.toFixed(2)} USD to your Sandbox balance!`);
+        setTimeout(() => setTopUpSuccess(null), 3500);
+      }
+    } catch (e) {
+      console.warn('Topup error:', e);
+    } finally {
+      setToppingUp(false);
+    }
+  }
+
   function handleCopyCredentials() {
     navigator.clipboard.writeText('Email: sb-buyer@personal.example.com\nPassword: SandboxPassword123!');
     setCopiedCreds(true);
@@ -64,16 +96,16 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn" />
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn" />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden animate-scaleIn">
+      <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden my-auto animate-scaleIn">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#0070ba] flex items-center justify-center text-white font-bold text-xl shadow-xs">
               P
@@ -96,9 +128,15 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-5 sm:px-6 py-4 sm:py-5 space-y-4 max-h-[80vh] overflow-y-auto">
+          {topUpSuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-bold animate-fadeIn">
+              {topUpSuccess}
+            </div>
+          )}
+
           {/* Live Balance Card with Escrow Accounting */}
-          <div className="p-5 bg-gradient-to-br from-blue-50/70 to-slate-50 border border-blue-100 rounded-2xl space-y-3">
+          <div className="p-4 sm:p-5 bg-gradient-to-br from-blue-50/70 to-slate-50 border border-blue-100 rounded-2xl space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-xs font-bold uppercase tracking-wider text-[#003087]">
                 Available to Stake
@@ -144,6 +182,61 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
             </div>
           </div>
 
+          {/* Top Up Sandbox Balance Section */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span>➕</span> Top Up Sandbox Balance
+              </span>
+              <span className="text-[10px] font-mono text-[#0070ba] font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                ANY AMOUNT
+              </span>
+            </div>
+
+            {/* Quick Preset Buttons */}
+            <div className="flex flex-wrap gap-1.5">
+              {[10, 25, 50, 100, 500].map((amt) => (
+                <button
+                  type="button"
+                  key={amt}
+                  onClick={() => setTopUpAmount(String(amt))}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all active:scale-95 ${
+                    parseFloat(topUpAmount) === amt
+                      ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  +${amt}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Amount Input & Button */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  placeholder="Amount..."
+                  className="w-full pl-6 pr-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-hidden focus:border-[#0070ba]"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleTopUp()}
+                disabled={toppingUp || !parseFloat(topUpAmount) || parseFloat(topUpAmount) <= 0}
+                className="px-4 py-2 bg-[#0070ba] hover:bg-[#003087] text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 active:scale-95 shrink-0"
+              >
+                {toppingUp ? 'Adding…' : 'Top Up Pool'}
+              </button>
+            </div>
+          </div>
+
           {/* Escrow Rule Note */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
             <span className="font-bold text-slate-800 block">System Escrow Rule:</span>
@@ -171,7 +264,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5">
+        <div className="px-5 sm:px-6 pb-5 pt-2">
           <button
             onClick={onClose}
             className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"

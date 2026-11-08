@@ -72,7 +72,7 @@ export async function getLiveSandboxBalance(accountId?: string): Promise<Sandbox
 
   return {
     balance: availableBalance,
-    startingBalance: DEFAULT_SANDBOX_BALANCE,
+    startingBalance: roundUsd(DEFAULT_SANDBOX_BALANCE + Math.max(0, adjustment)),
     heldBalance: heldDollars,
     capturedBalance: capturedDollars,
     activeHoldsCount,

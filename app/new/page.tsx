@@ -84,7 +84,7 @@ export default function CreatePledgePage() {
   const [goalCategory, setGoalCategory] = useState<CategoryId>('fitness');
   const [goalType, setGoalType] = useState<'photo' | 'github'>('photo');
   const [goalTitle, setGoalTitle] = useState('Morning Gym Workout Consistency');
-  const [stakeDollars, setStakeDollars] = useState(15);
+  const [stakeDollars, setStakeDollars] = useState<number | string>(15);
   const [sprintHours, setSprintHours] = useState(24);
 
   // Photo & Visual proof configuration
@@ -184,7 +184,8 @@ export default function CreatePledgePage() {
     }
   }, [goalCategory, goalType, sceneElements, proofHint, repo, username, minCommits]);
 
-  const stakeCents = Math.round(stakeDollars * 100);
+  const numericStake = Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01);
+  const stakeCents = Math.round(numericStake * 100);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -387,37 +388,73 @@ export default function CreatePledgePage() {
             )}
           </div>
 
-          {/* Step 3: Safe Stake & Sprint Window */}
+          {/* Step 3: Flexible Stake & Sprint Window (No Upper Limit, starts from 0.01) */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
-            <h2 className="text-sm sm:text-base font-bold text-slate-900">3. Choose Your Stake &amp; Timeline</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900">3. Choose Your Stake &amp; Timeline</h2>
+              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                NO UPPER LIMIT · FROM $0.01
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div className="space-y-2">
+              {/* Stake Amount Input */}
+              <div className="space-y-2.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-slate-700">
-                    PayPal Authorization Hold:
+                    Commitment Stake Amount:
                   </label>
                   <span className="font-mono text-base sm:text-lg font-black text-[#003087]">
-                    ${stakeDollars.toFixed(2)} USD
+                    ${(parseFloat(String(stakeDollars)) || 0).toFixed(2)} USD
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
-                  step="5"
-                  value={stakeDollars}
-                  onChange={(e) => setStakeDollars(Number(e.target.value))}
-                  className="w-full h-3 bg-slate-200 rounded-lg cursor-pointer accent-[#0070ba]"
-                />
+
+                {/* Custom Flexible Currency Input */}
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={stakeDollars}
+                    onChange={(e) => setStakeDollars(e.target.value)}
+                    required
+                    className="w-full pl-8 pr-16 py-2.5 rounded-xl border border-slate-300 font-mono font-bold text-base text-slate-900 bg-white focus:outline-hidden focus:border-[#0070ba] focus:ring-1 focus:ring-[#0070ba]"
+                    placeholder="15.00"
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs font-mono">USD</span>
+                </div>
+
+                {/* Quick Presets Chips */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Quick Presets:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[0.01, 1, 5, 15, 50, 100, 250, 500].map((preset) => (
+                      <button
+                        type="button"
+                        key={preset}
+                        onClick={() => setStakeDollars(preset)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-all active:scale-95 ${
+                          parseFloat(String(stakeDollars)) === preset
+                            ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        ${preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <span className="text-[11px] text-slate-500 block leading-tight">
-                  Funds remain in the Sandbox buyer account as a temporary authorization hold. Minimum $5.00; maximum $50.00.
+                  Enter any amount starting from $0.01 cents with zero upper restrictions. Funds remain safely held in PayPal Sandbox escrow.
                 </span>
               </div>
 
-              <div className="space-y-2">
+              {/* Deadline */}
+              <div className="space-y-2.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-700">Deadline:</label>
+                  <label className="text-xs font-bold text-slate-700">Sprint Deadline:</label>
                   <span className="font-mono text-base sm:text-lg font-bold text-slate-800">
                     {sprintHours} Hours
                   </span>
@@ -432,6 +469,9 @@ export default function CreatePledgePage() {
                   <option value={36}>36 Hours (Weekend Goal)</option>
                   <option value={48}>48 Hours (Max Sprint Window)</option>
                 </select>
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Countdown begins immediately once the PayPal Sandbox authorization hold is sealed.
+                </span>
               </div>
             </div>
           </div>
