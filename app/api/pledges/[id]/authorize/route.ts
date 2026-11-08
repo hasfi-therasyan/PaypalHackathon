@@ -4,7 +4,7 @@ import { authorizeOrder } from '@/app/lib/paypal/orders';
 import { db } from '@/app/lib/db';
 import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { transitionOrThrow } from '@/app/lib/state/transitions';
-import { deductSandboxBalance, getSandboxBalance } from '@/app/lib/paypal/balance';
+import { getLiveSandboxBalance } from '@/app/lib/paypal/balance';
 import { getViewer, requirePledgeAccess } from '@/app/lib/access';
 
 /**
@@ -37,17 +37,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
     // Direct Sandbox Balance Hold
     if (source === 'sandbox_balance' || !orderId || orderId === 'SANDBOX_BALANCE' || orderId.startsWith('SB_')) {
       const stakeDollars = pledge.stake_cents / 100;
-      const currentBal = getSandboxBalance(pledge.user_id);
+      const currentStats = await getLiveSandboxBalance(pledge.user_id);
 
-      if (currentBal < stakeDollars) {
+      if (currentStats.balance < stakeDollars) {
         return NextResponse.json(
-          { error: `Insufficient PayPal Sandbox balance ($${currentBal.toFixed(2)} USD available, $${stakeDollars.toFixed(2)} needed). Please top up in the Sandbox Wallet.` },
+          { error: `Insufficient PayPal Sandbox balance ($${currentStats.balance.toFixed(2)} USD available, $${stakeDollars.toFixed(2)} needed). Please top up in the Sandbox Wallet.` },
           { status: 400 }
         );
       }
 
-      // Deduct from Sandbox Money Pool
-      const remainingBalance = deductSandboxBalance(pledge.user_id, stakeDollars);
       const authorizationId = `AUTH-SB-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
       const effectiveOrderId = orderId || `ORDER-SB-${pledge.id.slice(0, 8).toUpperCase()}`;
 
@@ -58,12 +56,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
         status: 'ACTIVE',
       });
 
+      // Recalculate dynamic balance reflecting the new ACTIVE hold
+      const updatedStats = await getLiveSandboxBalance(pledge.user_id);
+
       await appendLedgerEvent(params.id, LEDGER_EVENT_TYPES.HOLD_AUTHORIZED, {
         authorizationId,
         orderId: effectiveOrderId,
         source: 'paypal_sandbox_balance',
         stakeDollars,
-        remainingSandboxBalance: remainingBalance,
+        remainingSandboxBalance: updatedStats.balance,
+        heldSandboxBalance: updatedStats.heldBalance,
         paypalStatus: 'AUTHORIZED',
       });
 
@@ -72,7 +74,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
         orderId: effectiveOrderId,
         status: 'ACTIVE',
         source: 'sandbox_balance',
-        remainingBalance,
+        remainingBalance: updatedStats.balance,
+        heldBalance: updatedStats.heldBalance,
       });
     }
 
@@ -80,27 +83,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const result = await authorizeOrder(orderId, params.id);
     transitionOrThrow(pledge.status, 'ACTIVE');
 
-    // Also deduct from simulated pool so the UI matches
-    const stakeDollars = pledge.stake_cents / 100;
-    const remainingBalance = deductSandboxBalance(pledge.user_id, stakeDollars);
-
     await db.pledges.update(params.id, {
       paypal_authorization_id: result.authorizationId,
       paypal_order_id: orderId,
       status: 'ACTIVE',
     });
 
+    const updatedStats = await getLiveSandboxBalance(pledge.user_id);
+
     await appendLedgerEvent(params.id, LEDGER_EVENT_TYPES.HOLD_AUTHORIZED, {
       authorizationId: result.authorizationId,
       orderId,
       paypalStatus: result.status,
-      remainingSandboxBalance: remainingBalance,
+      remainingSandboxBalance: updatedStats.balance,
+      heldSandboxBalance: updatedStats.heldBalance,
     });
 
     return NextResponse.json({
       authorizationId: result.authorizationId,
       status: 'ACTIVE',
-      remainingBalance,
+      remainingBalance: updatedStats.balance,
+      heldBalance: updatedStats.heldBalance,
     });
   } catch (err: any) {
     console.error('Authorize order failed', err);

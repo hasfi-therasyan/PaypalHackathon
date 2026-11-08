@@ -1,25 +1,30 @@
 // app/api/paypal/userinfo/route.ts
 import { NextResponse } from 'next/server';
-import { getSandboxBalance, topUpSandboxBalance, deductSandboxBalance, setSandboxBalance } from '@/app/lib/paypal/balance';
+import { getLiveSandboxBalance, topUpSandboxBalance, deductSandboxBalance, setSandboxBalance } from '@/app/lib/paypal/balance';
 import { getViewer } from '@/app/lib/access';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Returns current sandbox pool balance or live PayPal userinfo.
+ * Returns current sandbox pool balance or live PayPal userinfo, dynamically computed
+ * from active authorization holds according to system escrow rules.
  */
 export async function GET(request: Request) {
   try {
     const token = request.headers.get('cookie')?.match(/paypal_access_token=([^;]+)/)?.[1];
     const accountId = getViewer(request)?.email;
-    const currentBalance = getSandboxBalance(accountId);
+    const report = await getLiveSandboxBalance(accountId);
 
     if (!token) {
       return NextResponse.json({
-        balance: currentBalance,
+        balance: report.balance,
+        startingBalance: report.startingBalance,
+        heldBalance: report.heldBalance,
+        capturedBalance: report.capturedBalance,
+        activeHoldsCount: report.activeHoldsCount,
         currency: 'USD',
         authenticated: false,
-        accountEmail: 'sb-buyer@personal.example.com',
+        accountEmail: accountId || 'sb-buyer@personal.example.com',
       });
     }
 
@@ -32,27 +37,41 @@ export async function GET(request: Request) {
 
     if (!userInfoRes.ok) {
       return NextResponse.json({
-        balance: currentBalance,
+        balance: report.balance,
+        startingBalance: report.startingBalance,
+        heldBalance: report.heldBalance,
+        capturedBalance: report.capturedBalance,
+        activeHoldsCount: report.activeHoldsCount,
         currency: 'USD',
         authenticated: true,
-        accountEmail: 'sb-buyer@personal.example.com',
+        accountEmail: accountId || 'sb-buyer@personal.example.com',
       });
     }
 
     const data = await userInfoRes.json();
     return NextResponse.json({
-      balance: currentBalance,
+      balance: report.balance,
+      startingBalance: report.startingBalance,
+      heldBalance: report.heldBalance,
+      capturedBalance: report.capturedBalance,
+      activeHoldsCount: report.activeHoldsCount,
       currency: 'USD',
       authenticated: true,
-      accountEmail: data.email || 'sb-buyer@personal.example.com',
+      accountEmail: data.email || accountId || 'sb-buyer@personal.example.com',
     });
   } catch (error: any) {
     console.warn('PayPal userinfo error fallback:', error);
+    const accountId = getViewer(request)?.email;
+    const report = await getLiveSandboxBalance(accountId);
     return NextResponse.json({
-      balance: getSandboxBalance(getViewer(request)?.email),
+      balance: report.balance,
+      startingBalance: report.startingBalance,
+      heldBalance: report.heldBalance,
+      capturedBalance: report.capturedBalance,
+      activeHoldsCount: report.activeHoldsCount,
       currency: 'USD',
       authenticated: false,
-      accountEmail: 'sb-buyer@personal.example.com',
+      accountEmail: accountId || 'sb-buyer@personal.example.com',
     });
   }
 }
@@ -67,17 +86,21 @@ export async function POST(request: Request) {
     const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
 
     const accountId = getViewer(request)?.email;
-    let updatedBalance = getSandboxBalance(accountId);
     if (action === 'deduct') {
-      updatedBalance = deductSandboxBalance(accountId, numAmount);
+      deductSandboxBalance(accountId, numAmount);
     } else if (action === 'topup') {
-      updatedBalance = topUpSandboxBalance(accountId, numAmount);
+      topUpSandboxBalance(accountId, numAmount);
     } else if (action === 'set') {
-      updatedBalance = setSandboxBalance(accountId, numAmount);
+      setSandboxBalance(accountId, numAmount);
     }
 
+    const report = await getLiveSandboxBalance(accountId);
     return NextResponse.json({
-      balance: updatedBalance,
+      balance: report.balance,
+      startingBalance: report.startingBalance,
+      heldBalance: report.heldBalance,
+      capturedBalance: report.capturedBalance,
+      activeHoldsCount: report.activeHoldsCount,
       currency: 'USD',
       success: true,
     });
