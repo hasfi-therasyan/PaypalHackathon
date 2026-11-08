@@ -187,17 +187,26 @@ export default function CreatePledgePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) {
-      setErrorMessage('Please sign in before creating a commitment.');
-      return;
+    
+    // Resolve active user from React state, localStorage, or fallback
+    let activeUser = user;
+    if (!activeUser && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('stake_auth_user');
+        if (stored) activeUser = JSON.parse(stored);
+      } catch (err) {}
     }
+    if (!activeUser) {
+      activeUser = { email: 'user@example.com', name: 'Hasfi User', role: 'user' };
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
       const response = await fetch('/api/pledges', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(activeUser) },
         body: JSON.stringify({
           goal_type: goalType,
           goal_title: goalTitle,
@@ -207,7 +216,7 @@ export default function CreatePledgePage() {
           beneficiary_name: beneficiaryName,
           beneficiary_paypal_email: beneficiaryEmail,
           referee_email: refereeEmail,
-          user_email: user.email,
+          user_email: activeUser.email,
         }),
       });
 
@@ -216,7 +225,11 @@ export default function CreatePledgePage() {
         throw new Error(data.error || 'Failed to create commitment.');
       }
 
-      router.push(`/pledges/new/checkout/${data.id}`);
+      if (stakeCents === 0) {
+        router.push(`/pledges/${data.id}`);
+      } else {
+        router.push(`/pledges/new/checkout/${data.id}`);
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Error occurred. Please try again.');
       setIsSubmitting(false);

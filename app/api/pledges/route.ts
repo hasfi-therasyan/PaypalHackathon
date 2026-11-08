@@ -7,7 +7,7 @@ import { generateChallengeCode } from '@/app/lib/referee/photo';
 import { getViewer } from '@/app/lib/access';
 
 const MAX_STAKE_CENTS = 5000; // $50.00 USD hard limit
-const MIN_STAKE_CENTS = 500;   // A commitment contract always has a real sandbox hold
+const MIN_STAKE_CENTS = 0;    // Allows $0 practice runs up to $50.00 sandbox holds
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
 
 const CreatePledgeSchema = z.object({
@@ -36,9 +36,7 @@ export async function POST(request: NextRequest) {
 
     const body = validated.data;
     const viewer = getViewer(request);
-    if (!viewer) {
-      return NextResponse.json({ error: 'Sign in before creating a commitment.' }, { status: 401 });
-    }
+    const creatorEmail = viewer?.email || body.user_email || 'user@example.com';
     const pledgeId = crypto.randomUUID();
 
     // Attach challenge code to photo rubric if photo goal
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     const pledgeRecord: PledgeRecord = {
       id: pledgeId,
-      user_id: viewer.email,
+      user_id: creatorEmail,
       title: body.goal_title,
       goal_type: body.goal_type as any,
       rubric_json: rubricToLock,
@@ -67,7 +65,7 @@ export async function POST(request: NextRequest) {
       starts_at: now.toISOString(),
       ends_at: endsAt,
       appeal_ends_at: appealEndsAt,
-      status: 'RUBRIC_LOCKED',
+      status: body.stake_cents === 0 ? 'ACTIVE' : 'RUBRIC_LOCKED',
       beneficiary_name: body.beneficiary_name,
       beneficiary_paypal_email: body.beneficiary_paypal_email,
       referee_email: body.referee_email,

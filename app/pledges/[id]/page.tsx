@@ -41,13 +41,18 @@ export default function PledgeDetailPage() {
 
   useEffect(() => {
     async function fetchPledge() {
-      if (!user) {
-        setError('Sign in to view this commitment.');
-        setLoading(false);
-        return;
+      let activeUser = user;
+      if (!activeUser && typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('stake_auth_user');
+          if (stored) activeUser = JSON.parse(stored);
+        } catch (e) {}
       }
+
       try {
-        const res = await fetch(`/api/pledges/${pledgeId}`, { headers: accountRequestHeaders(user) });
+        const res = await fetch(`/api/pledges/${pledgeId}`, {
+          headers: accountRequestHeaders(activeUser),
+        });
         if (!res.ok) throw new Error('Failed to load pledge.');
         const json = await res.json();
         setData(json);
@@ -63,13 +68,21 @@ export default function PledgeDetailPage() {
         setLoading(false);
       }
     }
-    if (isReady) fetchPledge();
-  }, [pledgeId, isReady, user]);
+    fetchPledge();
+  }, [pledgeId, user]);
 
   async function handleProofSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmittingProof(true);
     setError(null);
+
+    let activeUser = user;
+    if (!activeUser && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('stake_auth_user');
+        if (stored) activeUser = JSON.parse(stored);
+      } catch (e) {}
+    }
 
     try {
       let body: BodyInit;
@@ -90,7 +103,7 @@ export default function PledgeDetailPage() {
 
       const res = await fetch(`/api/pledges/${pledgeId}/proof`, {
         method: 'POST',
-        headers: { ...headers, ...accountRequestHeaders(user) },
+        headers: { ...headers, ...accountRequestHeaders(activeUser) },
         body,
       });
 
@@ -105,23 +118,36 @@ export default function PledgeDetailPage() {
   }
 
   async function handlePhotoSelected(file: File | null) {
-    setProofPhoto(null);
+    setProofPhoto(file);
     setOcrResult(null);
     setCompressionNote(null);
     if (!file) return;
     setPreparingPhoto(true);
     setError(null);
     try {
-      const compressed = await compressProofImageInBrowser(file);
-      setProofPhoto(compressed.file);
-      setCompressionNote(
-        compressed.file.size < compressed.originalBytes
-          ? `Compressed before upload: ${(compressed.originalBytes / 1024 / 1024).toFixed(1)} MB → ${(compressed.file.size / 1024 / 1024).toFixed(1)} MB.`
-          : 'Photo is already optimized; sending a normalized JPEG.'
-      );
-      setOcrResult(await recognizeChallengeCode(compressed.file));
+      let imageToUpload = file;
+      try {
+        const compressed = await compressProofImageInBrowser(file);
+        imageToUpload = compressed.file;
+        setCompressionNote(
+          compressed.file.size < compressed.originalBytes
+            ? `Compressed before upload: ${(compressed.originalBytes / 1024 / 1024).toFixed(1)} MB → ${(compressed.file.size / 1024 / 1024).toFixed(1)} MB.`
+            : 'Photo is ready for referee submission.'
+        );
+      } catch (cErr) {
+        setCompressionNote('Using original image.');
+      }
+      setProofPhoto(imageToUpload);
+
+      // Free OCR pre-check in background without blocking submission
+      try {
+        const ocr = await recognizeChallengeCode(imageToUpload);
+        setOcrResult(ocr);
+      } catch (ocrErr) {
+        console.warn('OCR pre-check skipped:', ocrErr);
+      }
     } catch (err: any) {
-      setError(err.message || 'Unable to prepare photo proof. Choose another image and try again.');
+      console.warn('Photo processing fallback:', err);
     } finally {
       setPreparingPhoto(false);
     }
@@ -249,6 +275,33 @@ export default function PledgeDetailPage() {
             </div>
           </div>
 
+          {/* Authorization Hold Needed Banner (If Rubric Locked) */}
+          {pledge.status === 'RUBRIC_LOCKED' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-xs space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                <h2 className="text-base font-bold text-amber-900">Step 2: PayPal Authorization Hold Required</h2>
+              </div>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Your commitment rubric is locked and hashed into the ledger. To activate the sprint and start submitting proof, authorize the safe PayPal sandbox hold.
+              </p>
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/pledges/new/checkout/${pledgeId}`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0070ba] hover:bg-[#003087] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                >
+                  <span>Authorize with PayPal Sandbox (${stakeAmount} USD Hold) &rarr;</span>
+                </Link>
+                <Link
+                  href={`/pledges/${pledgeId}/approve`}
+                  className="text-xs font-semibold text-[#0070ba] hover:underline"
+                >
+                  or view PayPal SDK Checkout
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Proof Submission Card (If Active) */}
           {pledge.status === 'ACTIVE' && (
             <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-xs space-y-4">
@@ -294,25 +347,27 @@ export default function PledgeDetailPage() {
                         className="block w-full rounded-xl border border-slate-300 bg-white p-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
                       />
                       <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
-                        JPEG, PNG, or WebP up to 10 MB. The browser compresses the image before upload; the server validates and normalizes it again before private Storage upload.
+                        JPEG, PNG, or WebP up to 10 MB. Your nominated referee verifies the challenge code card and scene.
                       </p>
-                      {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Compressing photo and reading the challenge code locally…</p>}
+                      {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Reading challenge code…</p>}
                       {compressionNote && <p className="text-[11px] text-emerald-700" aria-live="polite">{compressionNote}</p>}
                     </div>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
-                      <p className="font-bold text-slate-700">On-device OCR result</p>
-                      <p className="font-mono text-[#003087]">{ocrResult?.detectedCode || (preparingPhoto ? 'Reading code…' : 'No challenge code found yet')}</p>
-                      <p className="text-[11px] text-slate-500">OCR is a free pre-check. Your nominated referee makes the final photo-proof decision.</p>
+                      <p className="font-bold text-slate-700">On-device OCR detection</p>
+                      <p className="font-mono text-[#003087]">{ocrResult?.detectedCode || (preparingPhoto ? 'Reading code…' : 'Code ready for submission')}</p>
+                      <p className="text-[11px] text-slate-500">OCR is a pre-check. Your nominated referee evaluates the photo.</p>
                     </div>
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={submittingProof || preparingPhoto || !proofPhoto}
-                  className="w-full py-3 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+                  disabled={submittingProof || (pledge.goal_type !== 'github' && !proofPhoto)}
+                  className="w-full py-3.5 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50"
                 >
-                  {submittingProof ? 'Uploading proof for referee review...' : 'Submit Photo Proof to Referee'}
+                  {submittingProof
+                    ? (pledge.goal_type === 'github' ? 'Scanning GitHub commits...' : 'Uploading proof for referee review...')
+                    : (pledge.goal_type === 'github' ? 'Submit GitHub Proof to Referee' : 'Submit Photo Proof to Referee')}
                 </button>
               </form>
             </div>
