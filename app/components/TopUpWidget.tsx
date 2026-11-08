@@ -16,19 +16,32 @@ export function TopUpWidget({ isOpen, onClose, currentBalance, onTopUpComplete }
 
   const presetAmounts = [10, 25, 50, 100];
 
-  function handleTopUp(amount: number) {
+  async function handleTopUp(amount: number) {
     if (amount <= 0 || amount > 500) return;
     setProcessing(true);
     setSuccess(null);
 
-    // Simulate sandbox top-up
-    setTimeout(() => {
-      onTopUpComplete(amount);
-      setProcessing(false);
-      setSuccess(`+$${amount.toFixed(2)} USD added to sandbox balance`);
-      setCustomAmount('');
-      setTimeout(() => setSuccess(null), 3000);
-    }, 600);
+    try {
+      const res = await fetch('/api/paypal/userinfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'topup', amount }),
+      });
+      const data = await res.json();
+      if (typeof data.balance === 'number') {
+        window.dispatchEvent(
+          new CustomEvent('paypal_balance_updated', { detail: data.balance })
+        );
+      }
+    } catch (e) {
+      // Fallback
+    }
+
+    onTopUpComplete(amount);
+    setProcessing(false);
+    setSuccess(`+$${amount.toFixed(2)} USD added to sandbox balance`);
+    setCustomAmount('');
+    setTimeout(() => setSuccess(null), 3000);
   }
 
   function handleCustomTopUp() {

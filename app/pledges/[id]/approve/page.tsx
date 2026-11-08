@@ -106,6 +106,30 @@ export default function ApproveHoldPage() {
     setTimeout(() => setCopiedCreds(false), 2000);
   }
 
+  const handleInstantSandboxHold = async () => {
+    setAuthorizing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/pledges/${pledgeId}/authorize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'sandbox_balance' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to authorize PayPal Sandbox hold');
+
+      if (typeof data.remainingBalance === 'number') {
+        window.dispatchEvent(
+          new CustomEvent('paypal_balance_updated', { detail: data.remainingBalance })
+        );
+      }
+      router.push(`/pledges/${pledgeId}`);
+    } catch (err: any) {
+      setError(err.message);
+      setAuthorizing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-xl mx-auto py-20 text-center">
@@ -238,9 +262,27 @@ export default function ApproveHoldPage() {
             </div>
           ) : (
             <>
+              {/* Direct Sandbox Money Pool Hold Button */}
+              <button
+                type="button"
+                onClick={handleInstantSandboxHold}
+                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-[#0070ba] hover:bg-[#003087] text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <span className="w-5 h-5 rounded-full bg-white text-[#0070ba] font-bold text-xs flex items-center justify-center">
+                  P
+                </span>
+                <span>Paypal Sandbox ({formattedMoney} Hold)</span>
+              </button>
+
+              <div className="relative py-1 flex items-center justify-center">
+                <div className="border-t border-slate-200 w-full" />
+                <span className="bg-white px-2 text-[10px] uppercase font-mono font-bold text-slate-400 absolute">
+                  or via PayPal popup
+                </span>
+              </div>
+
               {/* PayPal JS SDK Buttons Container */}
               <div id="paypal-button-container" className="min-h-[48px]" />
-
             </>
           )}
 

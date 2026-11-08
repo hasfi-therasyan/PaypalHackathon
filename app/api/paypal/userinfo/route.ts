@@ -1,20 +1,20 @@
 // app/api/paypal/userinfo/route.ts
 import { NextResponse } from 'next/server';
+import { getSandboxBalance, topUpSandboxBalance, deductSandboxBalance, setSandboxBalance } from '@/app/lib/paypal/balance';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Reads the PayPal access token from the HttpOnly cookie set by
- * `/api/paypal/oauth`. Uses the OpenID Connect user-info endpoint
- * or falls back to sandbox balance simulation so it never throws 500.
+ * Returns current sandbox pool balance or live PayPal userinfo.
  */
 export async function GET(request: Request) {
   try {
     const token = request.headers.get('cookie')?.match(/paypal_access_token=([^;]+)/)?.[1];
+    const currentBalance = getSandboxBalance();
+
     if (!token) {
-      // In sandbox/demo mode, return demo balance if no OAuth token is set yet
       return NextResponse.json({
-        balance: 500.0,
+        balance: currentBalance,
         currency: 'USD',
         authenticated: false,
         accountEmail: 'sb-buyer@personal.example.com',
@@ -29,9 +29,8 @@ export async function GET(request: Request) {
     });
 
     if (!userInfoRes.ok) {
-      // Graceful fallback to sandbox buyer default rather than crashing with 500
       return NextResponse.json({
-        balance: 500.0,
+        balance: currentBalance,
         currency: 'USD',
         authenticated: true,
         accountEmail: 'sb-buyer@personal.example.com',
@@ -39,9 +38,8 @@ export async function GET(request: Request) {
     }
 
     const data = await userInfoRes.json();
-    const balance = parseFloat(data.account_balance?.value ?? '500.00');
     return NextResponse.json({
-      balance,
+      balance: currentBalance,
       currency: 'USD',
       authenticated: true,
       accountEmail: data.email || 'sb-buyer@personal.example.com',
@@ -49,7 +47,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.warn('PayPal userinfo error fallback:', error);
     return NextResponse.json({
-      balance: 500.0,
+      balance: getSandboxBalance(),
       currency: 'USD',
       authenticated: false,
       accountEmail: 'sb-buyer@personal.example.com',
@@ -57,3 +55,30 @@ export async function GET(request: Request) {
   }
 }
 
+/**
+ * POST endpoint to adjust the sandbox money pool balance (e.g. deduct for a pledge hold or top-up)
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const { action, amount } = body;
+    const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+
+    let updatedBalance = getSandboxBalance();
+    if (action === 'deduct') {
+      updatedBalance = deductSandboxBalance(numAmount);
+    } else if (action === 'topup') {
+      updatedBalance = topUpSandboxBalance(numAmount);
+    } else if (action === 'set') {
+      updatedBalance = setSandboxBalance(numAmount);
+    }
+
+    return NextResponse.json({
+      balance: updatedBalance,
+      currency: 'USD',
+      success: true,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
+}

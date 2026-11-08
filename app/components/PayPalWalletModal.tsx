@@ -31,6 +31,17 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
     if (isOpen) {
       fetchBalance();
     }
+
+    const handleBalanceUpdate = (e: any) => {
+      if (typeof e.detail === 'number') {
+        setBalance(e.detail);
+      } else {
+        fetchBalance();
+      }
+    };
+
+    window.addEventListener('paypal_balance_updated', handleBalanceUpdate);
+    return () => window.removeEventListener('paypal_balance_updated', handleBalanceUpdate);
   }, [isOpen]);
 
   function handleCopyCredentials() {

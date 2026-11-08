@@ -31,6 +31,17 @@ export function Header() {
       }
     }
     fetchBal();
+
+    const handleBalanceUpdate = (e: any) => {
+      if (typeof e.detail === 'number') {
+        setBalance(e.detail);
+      } else {
+        fetchBal();
+      }
+    };
+
+    window.addEventListener('paypal_balance_updated', handleBalanceUpdate);
+    return () => window.removeEventListener('paypal_balance_updated', handleBalanceUpdate);
   }, [walletOpen]);
 
   // Close profile dropdown when clicking outside
