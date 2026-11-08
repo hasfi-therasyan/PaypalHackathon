@@ -35,6 +35,11 @@ export interface PledgeRecord {
   updated_at: string;
 }
 
+export interface PledgePage {
+  pledges: PledgeRecord[];
+  nextCursor: string | null;
+}
+
 export interface ProofRecord {
   id: string;
   pledge_id: string;
@@ -143,6 +148,76 @@ export const db = {
       return Array.from(memoryStore.pledges.values()).sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+    },
+
+    async listPage(options: { limit?: number; cursor?: string | null; userId?: string } = {}): Promise<PledgePage> {
+      const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+      try {
+        let query = supabase
+          .from('pledges')
+          .select('id,user_id,title,goal_type,stake_cents,currency,starts_at,ends_at,appeal_ends_at,status,beneficiary_name,referee_email,paypal_authorization_id,created_at,updated_at')
+          .order('created_at', { ascending: false })
+          .limit(limit + 1);
+        if (options.userId) query = query.eq('user_id', options.userId);
+        if (options.cursor) query = query.lt('created_at', options.cursor);
+        const { data, error } = await query;
+        if (!error && data) {
+          const hasNext = data.length > limit;
+          const pledges = data.slice(0, limit) as PledgeRecord[];
+          return { pledges, nextCursor: hasNext ? pledges[pledges.length - 1]?.created_at ?? null : null };
+        }
+      } catch {
+        // Local demo fallback below.
+      }
+      let pledges = Array.from(memoryStore.pledges.values());
+      if (options.userId) pledges = pledges.filter((pledge) => pledge.user_id === options.userId);
+      pledges = pledges
+        .filter((pledge) => !options.cursor || pledge.created_at < options.cursor)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const page = pledges.slice(0, limit);
+      return { pledges: page, nextCursor: pledges.length > limit ? page[page.length - 1]?.created_at ?? null : null };
+    },
+
+    async listDue(nowIso: string): Promise<PledgeRecord[]> {
+      try {
+        const [active, appeals] = await Promise.all([
+          supabase.from('pledges').select('*').eq('status', 'ACTIVE').lte('ends_at', nowIso),
+          supabase.from('pledges').select('*').eq('status', 'APPEAL_WINDOW_OPEN').lte('appeal_ends_at', nowIso),
+        ]);
+        if (!active.error && !appeals.error) {
+          return [...(active.data || []), ...(appeals.data || [])] as PledgeRecord[];
+        }
+      } catch {
+        // Local demo fallback below.
+      }
+      return Array.from(memoryStore.pledges.values()).filter(
+        (pledge) =>
+          (pledge.status === 'ACTIVE' && pledge.ends_at <= nowIso) ||
+          (pledge.status === 'APPEAL_WINDOW_OPEN' && pledge.appeal_ends_at <= nowIso)
+      );
+    },
+
+    async reliability(userId: string): Promise<{ successes: number; failures: number }> {
+      try {
+        const { data, error } = await supabase
+          .from('pledges')
+          .select('status')
+          .eq('user_id', userId)
+          .in('status', ['SUCCEEDED', 'CAPTURED', 'PAID_OUT']);
+        if (!error && data) {
+          return {
+            successes: data.filter((pledge) => pledge.status === 'SUCCEEDED').length,
+            failures: data.filter((pledge) => pledge.status === 'CAPTURED' || pledge.status === 'PAID_OUT').length,
+          };
+        }
+      } catch {
+        // Local demo fallback below.
+      }
+      const pledges = Array.from(memoryStore.pledges.values()).filter((pledge) => pledge.user_id === userId);
+      return {
+        successes: pledges.filter((pledge) => pledge.status === 'SUCCEEDED').length,
+        failures: pledges.filter((pledge) => pledge.status === 'CAPTURED' || pledge.status === 'PAID_OUT').length,
+      };
     },
   },
 

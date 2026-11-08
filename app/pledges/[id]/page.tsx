@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { compressProofImageInBrowser } from '@/app/lib/proofs/compress-client';
+import { recognizeChallengeCode, type OcrResult } from '@/app/lib/proofs/ocr-client';
 
 export default function PledgeDetailPage() {
   const params = useParams();
@@ -20,6 +22,10 @@ export default function PledgeDetailPage() {
   const [githubAuthorInput, setGithubAuthorInput] = useState('');
   const [photoCodeInput, setPhotoCodeInput] = useState('');
   const [photoElementsInput, setPhotoElementsInput] = useState('laptop, notes');
+  const [proofPhoto, setProofPhoto] = useState<File | null>(null);
+  const [compressionNote, setCompressionNote] = useState<string | null>(null);
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
 
   useEffect(() => {
     async function fetchPledge() {
@@ -49,19 +55,26 @@ export default function PledgeDetailPage() {
     setError(null);
 
     try {
-      const payload: any = {};
+      let body: BodyInit;
+      let headers: HeadersInit | undefined;
       if (data.pledge.goal_type === 'github') {
-        payload.repo = githubRepoInput;
-        payload.username = githubAuthorInput;
+        headers = { 'Content-Type': 'application/json' };
+        body = JSON.stringify({ repo: githubRepoInput, username: githubAuthorInput });
       } else {
-        payload.code_read = photoCodeInput;
-        payload.scene_elements = photoElementsInput.split(',').map((s) => s.trim()).filter(Boolean);
+        if (!proofPhoto) {
+          throw new Error('Select a photo to submit as proof.');
+        }
+        const formData = new FormData();
+        formData.append('proof_photo', proofPhoto);
+        formData.append('ocr_code', ocrResult?.detectedCode || '');
+        formData.append('ocr_confidence', String(ocrResult?.confidence || 0));
+        body = formData;
       }
 
       const res = await fetch(`/api/pledges/${pledgeId}/proof`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers,
+        body,
       });
 
       const resData = await res.json();
@@ -71,6 +84,29 @@ export default function PledgeDetailPage() {
     } catch (err: any) {
       setError(err.message);
       setSubmittingProof(false);
+    }
+  }
+
+  async function handlePhotoSelected(file: File | null) {
+    setProofPhoto(null);
+    setOcrResult(null);
+    setCompressionNote(null);
+    if (!file) return;
+    setPreparingPhoto(true);
+    setError(null);
+    try {
+      const compressed = await compressProofImageInBrowser(file);
+      setProofPhoto(compressed.file);
+      setCompressionNote(
+        compressed.file.size < compressed.originalBytes
+          ? `Compressed before upload: ${(compressed.originalBytes / 1024 / 1024).toFixed(1)} MB → ${(compressed.file.size / 1024 / 1024).toFixed(1)} MB.`
+          : 'Photo is already optimized; sending a normalized JPEG.'
+      );
+      setOcrResult(await recognizeChallengeCode(compressed.file));
+    } catch (err: any) {
+      setError(err.message || 'Unable to prepare photo proof. Choose another image and try again.');
+    } finally {
+      setPreparingPhoto(false);
     }
   }
 
@@ -210,34 +246,39 @@ export default function PledgeDetailPage() {
                   </div>
                 ) : (
                   <div className="space-y-3 text-xs">
-                    <div className="space-y-1">
-                      <label className="font-bold text-slate-700">Confirmed Challenge Code in Photo</label>
+                    <div className="space-y-1.5">
+                      <label htmlFor="proofPhoto" className="font-bold text-slate-700">
+                        Evidence Photo
+                      </label>
                       <input
-                        type="text"
-                        value={photoCodeInput}
-                        onChange={(e) => setPhotoCodeInput(e.target.value)}
+                        id="proofPhoto"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
                         required
-                        className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                        onChange={(e) => handlePhotoSelected(e.target.files?.[0] || null)}
+                        aria-describedby="proofPhotoHint"
+                        className="block w-full rounded-xl border border-slate-300 bg-white p-2 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
                       />
+                      <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
+                        JPEG, PNG, or WebP up to 10 MB. The browser compresses the image before upload; the server validates and normalizes it again before private Storage upload.
+                      </p>
+                      {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Compressing photo and reading the challenge code locally…</p>}
+                      {compressionNote && <p className="text-[11px] text-emerald-700" aria-live="polite">{compressionNote}</p>}
                     </div>
-                    <div className="space-y-1">
-                      <label className="font-bold text-slate-700">Observed Scene Elements</label>
-                      <input
-                        type="text"
-                        value={photoElementsInput}
-                        onChange={(e) => setPhotoElementsInput(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
-                      />
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
+                      <p className="font-bold text-slate-700">On-device OCR result</p>
+                      <p className="font-mono text-[#003087]">{ocrResult?.detectedCode || (preparingPhoto ? 'Reading code…' : 'No challenge code found yet')}</p>
+                      <p className="text-[11px] text-slate-500">OCR is a free pre-check. Your nominated referee makes the final photo-proof decision.</p>
                     </div>
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={submittingProof}
+                  disabled={submittingProof || preparingPhoto || !proofPhoto}
                   className="w-full py-3 bg-[#0d7a53] hover:bg-[#085a3c] text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
                 >
-                  {submittingProof ? 'Evaluating Proof...' : '⚡ Submit Proof to Automated Referee'}
+                  {submittingProof ? 'Uploading proof for referee review...' : 'Submit Photo Proof to Referee'}
                 </button>
               </form>
             </div>

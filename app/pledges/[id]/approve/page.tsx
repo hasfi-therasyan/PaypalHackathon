@@ -100,29 +100,6 @@ export default function ApproveHoldPage() {
     }).render('#paypal-button-container');
   }, [sdkReady, pledge, pledgeId, router]);
 
-  async function handleSimulateApproval() {
-    setAuthorizing(true);
-    setError(null);
-    try {
-      const orderRes = await fetch(`/api/pledges/${pledgeId}/order`, { method: 'POST' });
-      const orderData = await orderRes.json();
-      const orderId = orderData.orderId || `MOCK-ORDER-${Date.now()}`;
-
-      const res = await fetch(`/api/pledges/${pledgeId}/authorize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Authorization failed');
-
-      router.push(`/pledges/${pledgeId}`);
-    } catch (err: any) {
-      setError(err.message);
-      setAuthorizing(false);
-    }
-  }
-
   function handleCopyCreds() {
     navigator.clipboard.writeText('Email: sb-buyer@personal.example.com\nPassword: SandboxPassword123!');
     setCopiedCreds(true);
@@ -264,14 +241,6 @@ export default function ApproveHoldPage() {
               {/* PayPal JS SDK Buttons Container */}
               <div id="paypal-button-container" className="min-h-[48px]" />
 
-              {/* One-Click Direct Sandbox Trigger */}
-              <button
-                type="button"
-                onClick={handleSimulateApproval}
-                className="w-full py-3.5 px-4 bg-[#0070ba] hover:bg-[#005ea6] text-white font-semibold rounded-xl text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
-              >
-                <span>Authorize Hold with Sandbox API →</span>
-              </button>
             </>
           )}
 

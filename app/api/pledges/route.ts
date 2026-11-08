@@ -6,11 +6,11 @@ import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/
 import { generateChallengeCode } from '@/app/lib/referee/photo';
 
 const MAX_STAKE_CENTS = 5000; // $50.00 USD hard limit
-const MIN_STAKE_CENTS = 0;     // $0.00 USD minimum as requested by user
+const MIN_STAKE_CENTS = 500;   // A commitment contract always has a real sandbox hold
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
 
 const CreatePledgeSchema = z.object({
-  goal_type: z.string().min(1, 'Goal type is required'),
+  goal_type: z.enum(['github', 'photo']),
   goal_title: z.string().min(3, 'Goal title must be at least 3 characters'),
   rubric_json: z.record(z.any()),
   stake_cents: z.number().int().min(MIN_STAKE_CENTS).max(MAX_STAKE_CENTS),
@@ -18,7 +18,7 @@ const CreatePledgeSchema = z.object({
   beneficiary_paypal_email: z.string().email('Valid beneficiary PayPal email required'),
   referee_email: z.string().email('Valid referee email required'),
   sprint_hours: z.number().int().min(1).max(MAX_SPRINT_HOURS).default(48),
-  user_email: z.string().optional(),
+  user_email: z.string().email().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -101,10 +101,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const list = await db.pledges.list();
-    return NextResponse.json({ pledges: list });
+    const { searchParams } = new URL(request.url);
+    const limit = Number(searchParams.get('limit') || 20);
+    const cursor = searchParams.get('cursor');
+    const page = await db.pledges.listPage({ limit, cursor });
+    return NextResponse.json(page, {
+      headers: { 'Cache-Control': 'private, max-age=0, s-maxage=15, stale-while-revalidate=30' },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message }, { status: 500 });
   }

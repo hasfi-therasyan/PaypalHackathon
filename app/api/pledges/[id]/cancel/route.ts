@@ -3,6 +3,7 @@ import { db } from '@/app/lib/db';
 import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { isWithinGraceCancellation } from '@/app/lib/state/transitions';
 import { voidAuthorization } from '@/app/lib/paypal/authorizations';
+import { transitionOrThrow } from '@/app/lib/state/transitions';
 
 export async function POST(
   request: NextRequest,
@@ -28,14 +29,10 @@ export async function POST(
       );
     }
 
-    if (pledge.paypal_authorization_id) {
-      try {
-        await voidAuthorization(pledge.paypal_authorization_id);
-      } catch (e) {
-        console.warn('Grace cancel void call error:', e);
-      }
-    }
+    if (!pledge.paypal_authorization_id) return NextResponse.json({ error: 'PayPal authorization is missing.' }, { status: 409 });
+    await voidAuthorization(pledge.paypal_authorization_id);
 
+    transitionOrThrow(pledge.status, 'CANCELLED');
     await db.pledges.update(pledge.id, { status: 'CANCELLED' });
 
     await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, {

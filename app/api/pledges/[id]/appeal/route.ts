@@ -5,6 +5,7 @@ import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { applyFriendDecision } from '@/app/lib/referee/verdict';
 import { voidAuthorization, captureAuthorization } from '@/app/lib/paypal/authorizations';
 import { createPayout } from '@/app/lib/paypal/payouts';
+import { transitionOrThrow } from '@/app/lib/state/transitions';
 
 export async function POST(
   request: NextRequest,
@@ -21,6 +22,9 @@ export async function POST(
         { error: 'Appeal window is not open or already resolved.' },
         { status: 400 }
       );
+    }
+    if (new Date(pledge.appeal_ends_at).getTime() < Date.now()) {
+      return NextResponse.json({ error: 'The appeal window has expired.' }, { status: 409 });
     }
 
     const body = await request.json();
@@ -48,67 +52,36 @@ export async function POST(
 
     if (approved) {
       // Void hold on pass
-      if (pledge.paypal_authorization_id) {
-        try {
-          await voidAuthorization(pledge.paypal_authorization_id);
-          await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, {
-            authorizationId: pledge.paypal_authorization_id,
-          });
-        } catch (e) {
-          console.warn('Friend approval void error:', e);
-        }
-      }
+      if (!pledge.paypal_authorization_id) return NextResponse.json({ error: 'PayPal authorization is missing.' }, { status: 409 });
+      await voidAuthorization(pledge.paypal_authorization_id);
+      transitionOrThrow(pledge.status, 'SUCCEEDED');
       await db.pledges.update(pledge.id, { status: 'SUCCEEDED' });
+      await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, { authorizationId: pledge.paypal_authorization_id });
       return NextResponse.json({ success: true, status: 'SUCCEEDED', verdict: verdictRecord });
     } else {
       // Capture hold and initiate payout on fail
-      let captureId = 'simulated_capture';
-      if (pledge.paypal_authorization_id) {
-        try {
-          const cap = await captureAuthorization(
-            pledge.paypal_authorization_id,
-            pledge.stake_cents,
-            pledge.id,
-            pledge.currency
-          );
-          captureId = cap.id;
-        } catch (e) {
-          console.warn('Capture error:', e);
-        }
-      }
+      if (!pledge.paypal_authorization_id) return NextResponse.json({ error: 'PayPal authorization is missing.' }, { status: 409 });
+      const cap = await captureAuthorization(
+        pledge.paypal_authorization_id,
+        pledge.stake_cents,
+        pledge.id,
+        pledge.currency
+      );
+      const captureId = cap.id;
 
       await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_CAPTURED, {
         captureId,
         amountCents: pledge.stake_cents,
       });
 
-      // Payout to beneficiary
-      let payoutBatchId = `${pledge.id}-payout`;
-      try {
-        const payout = await createPayout(
-          pledge.id,
-          pledge.beneficiary_paypal_email,
-          pledge.stake_cents,
-          pledge.currency
-        );
-        payoutBatchId = payout.batch_header.payout_batch_id;
-      } catch (e) {
-        console.warn('Payout error:', e);
-      }
-
-      await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.PAYOUT_SENT, {
-        payoutBatchId,
-        beneficiary: pledge.beneficiary_paypal_email,
-        amountCents: pledge.stake_cents,
-      });
-
+      transitionOrThrow(pledge.status, 'CAPTURED');
       await db.pledges.update(pledge.id, {
-        status: 'PAID_OUT',
+        status: 'CAPTURED',
         paypal_capture_id: captureId,
-        paypal_payout_batch_id: payoutBatchId,
       });
-
-      return NextResponse.json({ success: true, status: 'PAID_OUT', verdict: verdictRecord });
+      // The verified PAYMENT.CAPTURE.COMPLETED webhook creates the payout. It
+      // is the source of truth for moving from CAPTURED to PAID_OUT.
+      return NextResponse.json({ success: true, status: 'CAPTURED', verdict: verdictRecord });
     }
   } catch (error: any) {
     console.error('Error handling appeal:', error);

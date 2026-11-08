@@ -78,9 +78,9 @@ export default function CreatePledgePage() {
   const { user } = useAuth();
 
   // Everyday consumer lifestyle categories
-  type CategoryId = 'fitness' | 'study' | 'habit' | 'productivity' | 'custom' | 'coding';
+  type CategoryId = 'fitness' | 'study' | 'habit' | 'productivity' | 'coding';
   const [goalCategory, setGoalCategory] = useState<CategoryId>('fitness');
-  const [goalType, setGoalType] = useState<'photo' | 'custom' | 'github'>('photo');
+  const [goalType, setGoalType] = useState<'photo' | 'github'>('photo');
   const [goalTitle, setGoalTitle] = useState('Morning Gym Workout Consistency');
   const [stakeDollars, setStakeDollars] = useState(15);
   const [sprintHours, setSprintHours] = useState(24);
@@ -88,9 +88,6 @@ export default function CreatePledgePage() {
   // Photo & Visual proof configuration
   const [sceneElements, setSceneElements] = useState('gym, workout weights, sneakers');
   const [proofHint, setProofHint] = useState('Snap a photo of your gym floor or workout spot with your handwritten challenge code.');
-
-  // Custom milestone deliverables
-  const [customMilestones, setCustomMilestones] = useState('1. Finish 30 minutes cardio\n2. Log morning water intake');
 
   // GitHub rubric fields (optional fallback)
   const [repo, setRepo] = useState('hasfi/stake-contract');
@@ -137,10 +134,6 @@ export default function CreatePledgePage() {
       setGoalType('github');
       setGoalTitle('Ship Next.js Hackathon API & Auth Sprints');
       setProofHint('AI referee scans your GitHub repo commits directly.');
-    } else {
-      setGoalType('custom');
-      setGoalTitle('My Personal Challenge Goal');
-      setProofHint('Submit your milestone notes or photo proof for referee confirmation.');
     }
   };
 
@@ -186,15 +179,8 @@ export default function CreatePledgePage() {
         min_distinct_days: 1,
         min_changed_lines: 50,
       };
-    } else {
-      return {
-        category: goalCategory,
-        type: 'custom',
-        milestones: customMilestones.split('\n').filter(Boolean),
-        referee_confirmation_required: true,
-      };
     }
-  }, [goalCategory, goalType, sceneElements, proofHint, repo, username, minCommits, customMilestones]);
+  }, [goalCategory, goalType, sceneElements, proofHint, repo, username, minCommits]);
 
   const stakeCents = Math.round(stakeDollars * 100);
 
@@ -225,11 +211,7 @@ export default function CreatePledgePage() {
         throw new Error(data.error || 'Failed to create commitment.');
       }
 
-      if (stakeCents === 0) {
-        router.push(`/pledges/${data.id}`);
-      } else {
-        router.push(`/pledges/new/checkout/${data.id}`);
-      }
+      router.push(`/pledges/new/checkout/${data.id}`);
     } catch (err: any) {
       setErrorMessage(err.message || 'Error occurred. Please try again.');
       setIsSubmitting(false);
@@ -271,7 +253,6 @@ export default function CreatePledgePage() {
               { id: 'study', icon: '📚', label: 'Study & Reading', desc: 'Books, courses, practice exams' },
               { id: 'habit', icon: '🌅', label: 'Daily Routine', desc: 'Wake up early, meditation, no-screen' },
               { id: 'productivity', icon: '💼', label: 'Productivity', desc: 'Finish projects, clear tasks' },
-              { id: 'custom', icon: '✨', label: 'Custom Goal', desc: 'Any personal challenge' },
               { id: 'coding', icon: '💻', label: 'Developer Sprint', desc: 'GitHub commits & coding' },
             ].map((cat) => (
               <button
@@ -339,22 +320,6 @@ export default function CreatePledgePage() {
             </div>
           )}
 
-          {goalType === 'custom' && (
-            <div className="space-y-2 text-xs">
-              <label className="font-bold text-slate-700">Checklist or Milestone Goals</label>
-              <textarea
-                value={customMilestones}
-                onChange={(e) => setCustomMilestones(e.target.value)}
-                rows={3}
-                className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900"
-                placeholder="List your specific targets..."
-              />
-              <span className="text-[11px] text-slate-500">
-                Your nominated friend referee will verify these upon deadline.
-              </span>
-            </div>
-          )}
-
           {goalType === 'github' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
@@ -405,7 +370,7 @@ export default function CreatePledgePage() {
               </div>
               <input
                 type="range"
-                min="0"
+                min="5"
                 max="50"
                 step="5"
                 value={stakeDollars}
@@ -413,9 +378,7 @@ export default function CreatePledgePage() {
                 className="w-full h-2 bg-slate-200 rounded-lg cursor-pointer accent-[#0070ba]"
               />
               <span className="text-[11px] text-slate-500 block">
-                {stakeDollars === 0
-                  ? 'Zero-risk mode ($0.00). Great for practice runs.'
-                  : 'Funds stay in your balance—only held as a temporary authorization.'}
+                Funds remain in the Sandbox buyer account as a temporary authorization hold. Minimum $5.00; maximum $50.00.
               </span>
             </div>
 

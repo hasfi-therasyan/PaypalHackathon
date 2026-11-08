@@ -15,7 +15,7 @@ export default function LedgerTimelinePage() {
 
   async function loadLedger() {
     try {
-      const res = await fetch(`/api/pledges/${pledgeId}`);
+        const res = await fetch(`/api/pledges/${pledgeId}?includeLedger=1`);
       if (!res.ok) throw new Error('Failed to load ledger.');
       const json = await res.json();
       setData(json);

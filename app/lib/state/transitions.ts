@@ -19,7 +19,7 @@ export type PledgeState = keyof typeof PLEDGE_STATES;
 export const ALLOWED_TRANSITIONS: Record<PledgeState, PledgeState[]> = {
   CREATED: ['RUBRIC_LOCKED'],
   RUBRIC_LOCKED: ['ACTIVE'],
-  ACTIVE: ['APPEAL_WINDOW_OPEN', 'SUCCEEDED', 'CANCELLED'],
+  ACTIVE: ['APPEAL_WINDOW_OPEN', 'SUCCEEDED', 'CAPTURED', 'CANCELLED'],
   APPEAL_WINDOW_OPEN: ['SUCCEEDED', 'CAPTURED', 'APPEAL_WINDOW_CLOSED'],
   APPEAL_WINDOW_CLOSED: ['CAPTURED', 'SUCCEEDED'],
   CAPTURED: ['PAID_OUT'],
@@ -27,6 +27,16 @@ export const ALLOWED_TRANSITIONS: Record<PledgeState, PledgeState[]> = {
   PAID_OUT: [],  // Terminal
   CANCELLED: [], // Terminal
 };
+
+/**
+ * Apply this before persisting every state change.  Keeping the transition
+ * table as the only authority prevents a route from inventing states that
+ * the UI and settlement worker do not understand.
+ */
+export function transitionOrThrow(current: string, next: PledgeState): PledgeState {
+  assertTransition(current, next);
+  return next;
+}
 
 export function canTransition(current: string, next: string): boolean {
   const allowed = ALLOWED_TRANSITIONS[current as PledgeState];

@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/app/lib/auth-context';
 
 const successes = 6;
 const failures = 1;
 
 export default function ReliabilityStatsPage() {
+  const { user } = useAuth();
   const [comfortBudget, setComfortBudget] = useState(10); // Default 10 USD
   const [posteriorMean, setPosteriorMean] = useState(0.807);
   const [ci80Lower, setCi80Lower] = useState(0.69);
@@ -29,7 +31,12 @@ export default function ReliabilityStatsPage() {
     fetch('/api/stats/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ successes, failures, comfortBudgetCents: comfortBudget * 100 }),
+      body: JSON.stringify({
+        successes,
+        failures,
+        userId: user?.email,
+        comfortBudgetCents: comfortBudget * 100,
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -50,7 +57,7 @@ export default function ReliabilityStatsPage() {
     return () => {
       cancelled = true;
     };
-  }, [comfortBudget]);
+  }, [comfortBudget, user?.email]);
 
   const recommendedStake = stakeCurve.filter((s) => s.underBudget).pop() || stakeCurve[0];
 

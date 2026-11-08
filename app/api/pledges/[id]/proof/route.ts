@@ -6,6 +6,8 @@ import { evaluateGitHubActivity, fetchGitHubCommits, GitHubRubric } from '@/app/
 import { evaluatePhotoProof, PhotoAnalysisResult, PhotoRubric } from '@/app/lib/referee/photo';
 import { determineVerdict } from '@/app/lib/referee/verdict';
 import { voidAuthorization } from '@/app/lib/paypal/authorizations';
+import { compressAndStoreProofImage, ProofUploadError } from '@/app/lib/proofs/storage';
+import { transitionOrThrow } from '@/app/lib/state/transitions';
 
 export async function POST(
   request: NextRequest,
@@ -23,9 +25,13 @@ export async function POST(
         { status: 400 }
       );
     }
+    if (new Date(pledge.ends_at).getTime() < Date.now()) {
+      return NextResponse.json({ error: 'This sprint has ended; the settlement worker will resolve it.' }, { status: 409 });
+    }
 
-    const body = await request.json();
     const proofId = crypto.randomUUID();
+    let body: Record<string, any> = {};
+    let storagePath: string | null = null;
     let signalsJson: any = {};
     let aiFindingsJson: any = {};
     let confidence = 1.0;
@@ -35,6 +41,7 @@ export async function POST(
 
     // 1. GITHUB PROOF EVALUATION
     if (pledge.goal_type === 'github') {
+      body = await request.json();
       const rubric: GitHubRubric = {
         repo: body.repo || pledge.rubric_json.repo || 'hasfi/demo-repo',
         username: body.username || pledge.rubric_json.username || 'hasfi',
@@ -70,6 +77,22 @@ export async function POST(
     }
     // 2. PHOTO PROOF EVALUATION
     else {
+      const formData = await request.formData();
+      const proofPhoto = formData.get('proof_photo');
+      if (!(proofPhoto instanceof File)) {
+        return NextResponse.json(
+          { error: 'A photo proof is required.' },
+          { status: 400 }
+        );
+      }
+
+      const storedImage = await compressAndStoreProofImage(pledge.id, proofId, proofPhoto);
+      storagePath = storedImage.path;
+      body = {
+        ocr_code: String(formData.get('ocr_code') || ''),
+        ocr_confidence: Number(formData.get('ocr_confidence') || 0),
+      };
+
       const expectedCode = pledge.rubric_json.challenge_code || 'amber-otter-17';
       const rubric: PhotoRubric = {
         required_scene_elements: pledge.rubric_json.required_scene_elements || ['laptop', 'notes'],
@@ -77,22 +100,29 @@ export async function POST(
       };
 
       const photoAnalysis: PhotoAnalysisResult = {
-        code_read: body.code_read || expectedCode,
-        scene_elements: body.scene_elements || ['laptop', 'notes', 'workspace'],
-        suspicious_signs: body.suspicious_signs || [],
-        element_confidences: body.element_confidences || { laptop: 0.92, notes: 0.88 },
-        confidence: body.confidence ?? 0.91,
+        code_read: body.ocr_code,
+        scene_elements: [],
+        suspicious_signs: ['Final decision reserved for the nominated referee.'],
+        element_confidences: {},
+        confidence: Math.max(0, Math.min(1, body.ocr_confidence)),
       };
 
       const evaluation = evaluatePhotoProof(expectedCode, photoAnalysis, rubric);
-      isPassed = evaluation.passed;
-      isBorderline = evaluation.borderline;
-      evalReasons = evaluation.reasons;
-      signalsJson = { photoAnalysis, codeMatch: evaluation.code_match };
+      // OCR is an evidentiary signal, not an automated verdict. A trusted
+      // referee must review each photo proof before any PayPal settlement.
+      isPassed = false;
+      isBorderline = true;
+      evalReasons = [...evaluation.reasons, 'Photo proof requires a final referee decision.'];
+      signalsJson = {
+        photoAnalysis,
+        codeMatch: evaluation.code_match,
+        image: storedImage,
+      };
       aiFindingsJson = {
-        vision_detected_elements: photoAnalysis.scene_elements,
-        suspicious_signs: photoAnalysis.suspicious_signs,
-        element_confidences: photoAnalysis.element_confidences,
+        method: 'on_device_tesseract_ocr',
+        code_read: photoAnalysis.code_read,
+        ocr_confidence: photoAnalysis.confidence,
+        automatic_settlement: false,
       };
       confidence = photoAnalysis.confidence;
     }
@@ -103,7 +133,7 @@ export async function POST(
       pledge_id: pledge.id,
       kind: pledge.goal_type,
       challenge_code: pledge.goal_type === 'photo' ? (pledge.rubric_json.challenge_code || null) : null,
-      storage_path: body.storage_path || null,
+      storage_path: storagePath,
       submitted_at: new Date().toISOString(),
       signals_json: signalsJson,
       ai_findings_json: aiFindingsJson,
@@ -153,19 +183,18 @@ export async function POST(
     // Act on verdict:
     // If pass -> Void the hold immediately and move to SUCCEEDED
     if (verdictDecision.outcome === 'pass') {
-      if (pledge.paypal_authorization_id) {
-        try {
-          await voidAuthorization(pledge.paypal_authorization_id);
-          await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, {
-            authorizationId: pledge.paypal_authorization_id,
-          });
-        } catch (e) {
-          console.warn('Void authorization failed or already voided:', e);
-        }
+      if (!pledge.paypal_authorization_id) {
+        return NextResponse.json({ error: 'The PayPal authorization is missing.' }, { status: 409 });
       }
+      await voidAuthorization(pledge.paypal_authorization_id);
+      transitionOrThrow(pledge.status, 'SUCCEEDED');
       await db.pledges.update(pledge.id, { status: 'SUCCEEDED' });
+      await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, {
+        authorizationId: pledge.paypal_authorization_id,
+      });
     } else {
       // Borderline or fail -> Open appeal window (24h)
+      transitionOrThrow(pledge.status, 'APPEAL_WINDOW_OPEN');
       await db.pledges.update(pledge.id, { status: 'APPEAL_WINDOW_OPEN' });
       await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.APPEAL_OPENED, {
         appealEndsAt: pledge.appeal_ends_at,
@@ -181,6 +210,9 @@ export async function POST(
     });
   } catch (error: any) {
     console.error('Error submitting proof:', error);
+    if (error instanceof ProofUploadError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json(
       { error: error?.message || 'Failed to submit proof' },
       { status: 500 }

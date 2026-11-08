@@ -15,6 +15,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (process.env.DEMO_MODE !== 'true') {
+    return NextResponse.json({ error: 'Tamper simulation is only available in DEMO_MODE.' }, { status: 403 });
+  }
   try {
     const events = await db.ledger.listByPledge(params.id);
     if (events.length === 0) {

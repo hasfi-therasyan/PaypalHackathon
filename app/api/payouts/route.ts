@@ -3,6 +3,9 @@ import crypto from 'crypto';
 import { createPayout } from '@/app/lib/paypal/payouts';
 
 export async function POST(request: NextRequest) {
+  if (process.env.DEMO_MODE !== 'true') {
+    return NextResponse.json({ error: 'Direct payout endpoint is disabled. Payouts are created by verified capture webhooks only.' }, { status: 403 });
+  }
   try {
     const body = await request.json();
 

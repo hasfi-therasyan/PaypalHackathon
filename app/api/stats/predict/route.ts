@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/app/lib/db';
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const modelUrl = process.env.MODEL_SERVICE_URL || 'http://localhost:8000';
+  const history = body.userId ? await db.pledges.reliability(String(body.userId)) : null;
+  const successes = history?.successes ?? body.successes ?? 6;
+  const failures = history?.failures ?? body.failures ?? 1;
 
   try {
     const res = await fetch(`${modelUrl}/predict`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        successes: body.successes ?? 6,
-        failures: body.failures ?? 1,
+        successes,
+        failures,
         comfort_budget_cents: body.comfortBudgetCents ?? 1000,
       }),
       signal: AbortSignal.timeout(3000),
@@ -20,8 +24,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data);
   } catch (e: any) {
     // Model service unreachable: demo-safe fallback matching its own math
-    const successes = body.successes ?? 6;
-    const failures = body.failures ?? 1;
     const comfortBudgetCents = body.comfortBudgetCents ?? 1000;
     const postAlpha = 4.5 + successes;
     const postBeta = 1.5 + failures;

@@ -4,6 +4,9 @@ import { db, PledgeRecord } from '@/app/lib/db';
 import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 
 export async function POST() {
+  if (process.env.DEMO_MODE !== 'true') {
+    return NextResponse.json({ error: 'Demo seeding is disabled outside DEMO_MODE.' }, { status: 403 });
+  }
   try {
     const demoPledges = [
       {

@@ -15,9 +15,10 @@ export interface VerifyWebhookParams {
  * POST /v1/notifications/verify-webhook-signature
  */
 export async function verifyWebhookSignature(params: VerifyWebhookParams): Promise<boolean> {
-  // If running in development/local test mode without real PayPal headers, allow simulation
+  // A synthetic webhook is allowed only in an explicitly opted-in local demo.
+  // Public deployments must never accept a missing or mock signature.
   if (!params.transmissionSig || params.transmissionSig === 'mock-sig') {
-    return true;
+    return process.env.DEMO_MODE === 'true';
   }
 
   try {

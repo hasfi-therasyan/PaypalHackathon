@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PayPalWalletModal } from './PayPalWalletModal';
-import { TopUpWidget } from './TopUpWidget';
 import { useAuth } from '../lib/auth-context';
 
 export function Header() {
@@ -12,7 +11,6 @@ export function Header() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [walletOpen, setWalletOpen] = useState(false);
-  const [topUpOpen, setTopUpOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [balance, setBalance] = useState<number>(500);
 
@@ -33,7 +31,7 @@ export function Header() {
       }
     }
     fetchBal();
-  }, [walletOpen, topUpOpen]);
+  }, [walletOpen]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -78,10 +76,6 @@ export function Header() {
     return active
       ? `${base} text-[#0070ba] bg-blue-50 border border-blue-200 shadow-sm`
       : `${base} text-slate-600 hover:text-[#0070ba] hover:bg-slate-50 border border-transparent`;
-  }
-
-  function handleTopUpComplete(amount: number) {
-    setBalance((prev) => prev + amount);
   }
 
   return (
@@ -280,18 +274,6 @@ export function Header() {
       <PayPalWalletModal
         isOpen={walletOpen}
         onClose={() => setWalletOpen(false)}
-        onTopUp={() => {
-          setWalletOpen(false);
-          setTopUpOpen(true);
-        }}
-      />
-
-      {/* Top Up Widget */}
-      <TopUpWidget
-        isOpen={topUpOpen}
-        onClose={() => setTopUpOpen(false)}
-        currentBalance={balance}
-        onTopUpComplete={handleTopUpComplete}
       />
     </>
   );

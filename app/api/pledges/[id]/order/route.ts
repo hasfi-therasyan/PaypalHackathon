@@ -13,6 +13,16 @@ export async function POST(
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
     }
 
+    if (pledge.status !== 'RUBRIC_LOCKED') {
+      return NextResponse.json({ error: `Pledge cannot create an order from ${pledge.status}.` }, { status: 409 });
+    }
+
+    // Reuse the existing order where possible.  This protects the buyer from
+    // accidental duplicate clicks and preserves PayPal idempotency.
+    if (pledge.paypal_order_id) {
+      return NextResponse.json({ orderId: pledge.paypal_order_id, reused: true });
+    }
+
     // Call PayPal Orders API with intent: AUTHORIZE
     const order = await createAuthorizeOrder(pledge.id, pledge.stake_cents, pledge.currency);
 

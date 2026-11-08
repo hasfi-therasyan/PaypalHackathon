@@ -5,10 +5,9 @@ import React, { useState, useEffect } from 'react';
 interface PayPalWalletModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onTopUp?: () => void;
 }
 
-export function PayPalWalletModal({ isOpen, onClose, onTopUp }: PayPalWalletModalProps) {
+export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
   const [balance, setBalance] = useState<number>(500);
   const [loading, setLoading] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
@@ -102,24 +101,12 @@ export function PayPalWalletModal({ isOpen, onClose, onTopUp }: PayPalWalletModa
               </button>
             </div>
 
-            {/* Top Up CTA */}
-            {onTopUp && (
-              <button
-                onClick={onTopUp}
-                className="w-full mt-1 py-2.5 bg-[#0070ba] hover:bg-[#005ea6] text-white font-semibold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m6-6H6" />
-                </svg>
-                Top Up Sandbox Balance
-              </button>
-            )}
           </div>
 
           {/* Linked Funding Sources */}
           <div className="space-y-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Linked Payment Methods
+              Sandbox funding is managed in PayPal Developer
             </span>
             <div className="space-y-2 text-xs">
               {/* PayPal Balance */}
@@ -136,21 +123,11 @@ export function PayPalWalletModal({ isOpen, onClose, onTopUp }: PayPalWalletModa
                 </span>
               </div>
 
-              {/* Visa Card */}
-              <div className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-5 bg-[#003087] text-white text-[9px] font-black rounded flex items-center justify-center italic">
-                    VISA
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800">Visa Debit Card •••• 4242</p>
-                    <p className="text-slate-500 text-[11px]">Primary Linked Card · Exp 12/28</p>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">Backup</span>
-              </div>
             </div>
           </div>
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            Stake cannot top up or withdraw Sandbox funds. Approving a commitment creates a PayPal Sandbox authorization hold; the buyer account shows the hold and its release or capture.
+          </p>
 
           {/* Sandbox Buyer Credentials */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
