@@ -1,6 +1,7 @@
 // app/api/paypal/userinfo/route.ts
 import { NextResponse } from 'next/server';
 import { getSandboxBalance, topUpSandboxBalance, deductSandboxBalance, setSandboxBalance } from '@/app/lib/paypal/balance';
+import { getViewer } from '@/app/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const token = request.headers.get('cookie')?.match(/paypal_access_token=([^;]+)/)?.[1];
-    const currentBalance = getSandboxBalance();
+    const accountId = getViewer(request)?.email;
+    const currentBalance = getSandboxBalance(accountId);
 
     if (!token) {
       return NextResponse.json({
@@ -47,7 +49,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.warn('PayPal userinfo error fallback:', error);
     return NextResponse.json({
-      balance: getSandboxBalance(),
+      balance: getSandboxBalance(getViewer(request)?.email),
       currency: 'USD',
       authenticated: false,
       accountEmail: 'sb-buyer@personal.example.com',
@@ -64,13 +66,14 @@ export async function POST(request: Request) {
     const { action, amount } = body;
     const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
 
-    let updatedBalance = getSandboxBalance();
+    const accountId = getViewer(request)?.email;
+    let updatedBalance = getSandboxBalance(accountId);
     if (action === 'deduct') {
-      updatedBalance = deductSandboxBalance(numAmount);
+      updatedBalance = deductSandboxBalance(accountId, numAmount);
     } else if (action === 'topup') {
-      updatedBalance = topUpSandboxBalance(numAmount);
+      updatedBalance = topUpSandboxBalance(accountId, numAmount);
     } else if (action === 'set') {
-      updatedBalance = setSandboxBalance(numAmount);
+      updatedBalance = setSandboxBalance(accountId, numAmount);
     }
 
     return NextResponse.json({

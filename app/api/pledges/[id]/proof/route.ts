@@ -215,7 +215,7 @@ export async function POST(
       if (!pledge.paypal_authorization_id) {
         return NextResponse.json({ error: 'The PayPal authorization is missing.' }, { status: 409 });
       }
-      await voidAuthorization(pledge.paypal_authorization_id, pledge.stake_cents);
+      await voidAuthorization(pledge.paypal_authorization_id, pledge.stake_cents, pledge.user_id);
       transitionOrThrow(pledge.status, 'SUCCEEDED');
       await db.pledges.update(pledge.id, { status: 'SUCCEEDED' });
       await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, {

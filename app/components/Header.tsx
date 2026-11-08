@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PayPalWalletModal } from './PayPalWalletModal';
 import { useAuth } from '../lib/auth-context';
+import { accountRequestHeaders } from '../lib/access';
 
 export function Header() {
   const router = useRouter();
@@ -19,7 +20,9 @@ export function Header() {
   useEffect(() => {
     async function fetchBal() {
       try {
-        const res = await fetch('/api/paypal/userinfo');
+        const res = await fetch('/api/paypal/userinfo', {
+          headers: accountRequestHeaders(user),
+        });
         if (res.ok) {
           const data = await res.json();
           if (typeof data.balance === 'number') {
@@ -42,7 +45,7 @@ export function Header() {
 
     window.addEventListener('paypal_balance_updated', handleBalanceUpdate);
     return () => window.removeEventListener('paypal_balance_updated', handleBalanceUpdate);
-  }, [walletOpen]);
+  }, [walletOpen, user]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {

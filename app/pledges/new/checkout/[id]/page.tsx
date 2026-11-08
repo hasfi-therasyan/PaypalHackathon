@@ -29,7 +29,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       try {
         const [pledgeRes, balanceRes] = await Promise.all([
           fetch(`/api/pledges/${id}`, { headers: accountRequestHeaders(user) }),
-          fetch('/api/paypal/userinfo'),
+          fetch('/api/paypal/userinfo', { headers: accountRequestHeaders(user) }),
         ]);
 
         if (pledgeRes.ok) {

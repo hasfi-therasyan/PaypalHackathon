@@ -20,12 +20,16 @@ export function isSandboxBalanceAuthorization(authorizationId: string): boolean 
  * Success path: Void authorization hold
  * POST /v2/payments/authorizations/{id}/void
  */
-export async function voidAuthorization(authorizationId: string, amountCents?: number): Promise<boolean> {
+export async function voidAuthorization(
+  authorizationId: string,
+  amountCents?: number,
+  accountId?: string
+): Promise<boolean> {
   if (isSandboxBalanceAuthorization(authorizationId)) {
     // AUTH-SB IDs belong to Stake's local Sandbox Wallet—not PayPal Orders.
     // Release the simulated hold locally and never send that synthetic ID to
     // PayPal, where it correctly returns a 404.
-    if (amountCents) topUpSandboxBalance(amountCents / 100);
+    if (amountCents) topUpSandboxBalance(accountId, amountCents / 100);
     return true;
   }
   await paypalFetch(`/v2/payments/authorizations/${authorizationId}/void`, {

@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import { db, VerdictRecord } from '@/app/lib/db';
 import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { applyFriendDecision } from '@/app/lib/referee/verdict';
-import { voidAuthorization, captureAuthorization } from '@/app/lib/paypal/authorizations';
+import { voidAuthorization, captureAuthorization, isSandboxBalanceAuthorization } from '@/app/lib/paypal/authorizations';
+import { deductSandboxBalance, hasSandboxBalanceEntry } from '@/app/lib/paypal/balance';
 import { createPayout } from '@/app/lib/paypal/payouts';
 import { transitionOrThrow } from '@/app/lib/state/transitions';
 import { getViewer, requirePledgeAccess } from '@/app/lib/access';
@@ -57,7 +58,7 @@ export async function POST(
     if (approved) {
       // Void hold on pass
       if (!pledge.paypal_authorization_id) return NextResponse.json({ error: 'PayPal authorization is missing.' }, { status: 409 });
-      await voidAuthorization(pledge.paypal_authorization_id, pledge.stake_cents);
+      await voidAuthorization(pledge.paypal_authorization_id, pledge.stake_cents, pledge.user_id);
       transitionOrThrow(pledge.status, 'SUCCEEDED');
       await db.pledges.update(pledge.id, { status: 'SUCCEEDED' });
       await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_VOIDED, { authorizationId: pledge.paypal_authorization_id });
@@ -72,6 +73,17 @@ export async function POST(
         pledge.currency
       );
       const captureId = cap.id;
+
+      // Normally the sandbox balance was reserved when the hold was created.
+      // When an older pledge survives a server restart, restore that missing
+      // reservation at capture time so a denied commitment never displays the
+      // untouched $500.00 default to its creator.
+      if (
+        isSandboxBalanceAuthorization(pledge.paypal_authorization_id) &&
+        !hasSandboxBalanceEntry(pledge.user_id)
+      ) {
+        deductSandboxBalance(pledge.user_id, pledge.stake_cents / 100);
+      }
 
       await appendLedgerEvent(pledge.id, LEDGER_EVENT_TYPES.HOLD_CAPTURED, {
         captureId,

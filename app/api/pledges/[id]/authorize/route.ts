@@ -22,7 +22,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!pledge) {
       return NextResponse.json({ error: 'Pledge not found' }, { status: 404 });
     }
-    if (!requirePledgeAccess(pledge, getViewer(request), ['owner', 'admin']).allowed) {
+    const viewer = getViewer(request);
+    if (!requirePledgeAccess(pledge, viewer, ['owner', 'admin']).allowed) {
       return NextResponse.json({ error: 'Only the commitment creator can authorize this hold.' }, { status: 403 });
     }
 
@@ -36,7 +37,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     // Direct Sandbox Balance Hold
     if (source === 'sandbox_balance' || !orderId || orderId === 'SANDBOX_BALANCE' || orderId.startsWith('SB_')) {
       const stakeDollars = pledge.stake_cents / 100;
-      const currentBal = getSandboxBalance();
+      const currentBal = getSandboxBalance(pledge.user_id);
 
       if (currentBal < stakeDollars) {
         return NextResponse.json(
@@ -46,7 +47,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
 
       // Deduct from Sandbox Money Pool
-      const remainingBalance = deductSandboxBalance(stakeDollars);
+      const remainingBalance = deductSandboxBalance(pledge.user_id, stakeDollars);
       const authorizationId = `AUTH-SB-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
       const effectiveOrderId = orderId || `ORDER-SB-${pledge.id.slice(0, 8).toUpperCase()}`;
 
@@ -81,7 +82,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     // Also deduct from simulated pool so the UI matches
     const stakeDollars = pledge.stake_cents / 100;
-    const remainingBalance = deductSandboxBalance(stakeDollars);
+    const remainingBalance = deductSandboxBalance(pledge.user_id, stakeDollars);
 
     await db.pledges.update(params.id, {
       paypal_authorization_id: result.authorizationId,

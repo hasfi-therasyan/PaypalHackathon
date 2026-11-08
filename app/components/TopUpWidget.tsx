@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useAuth } from '../lib/auth-context';
+import { accountRequestHeaders } from '../lib/access';
 
 interface TopUpWidgetProps {
   isOpen: boolean;
@@ -10,6 +12,7 @@ interface TopUpWidgetProps {
 }
 
 export function TopUpWidget({ isOpen, onClose, currentBalance, onTopUpComplete }: TopUpWidgetProps) {
+  const { user } = useAuth();
   const [customAmount, setCustomAmount] = useState('');
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -24,7 +27,7 @@ export function TopUpWidget({ isOpen, onClose, currentBalance, onTopUpComplete }
     try {
       const res = await fetch('/api/paypal/userinfo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
         body: JSON.stringify({ action: 'topup', amount }),
       });
       const data = await res.json();

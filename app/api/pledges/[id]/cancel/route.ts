@@ -34,7 +34,7 @@ export async function POST(
     }
 
     if (!pledge.paypal_authorization_id) return NextResponse.json({ error: 'PayPal authorization is missing.' }, { status: 409 });
-    await voidAuthorization(pledge.paypal_authorization_id, pledge.stake_cents);
+    await voidAuthorization(pledge.paypal_authorization_id, pledge.stake_cents, pledge.user_id);
 
     transitionOrThrow(pledge.status, 'CANCELLED');
     await db.pledges.update(pledge.id, { status: 'CANCELLED' });

@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../lib/auth-context';
+import { accountRequestHeaders } from '../lib/access';
 
 interface PayPalWalletModalProps {
   isOpen: boolean;
@@ -8,6 +10,7 @@ interface PayPalWalletModalProps {
 }
 
 export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
+  const { user } = useAuth();
   const [balance, setBalance] = useState<number>(500);
   const [loading, setLoading] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
@@ -15,7 +18,9 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
   const fetchBalance = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/paypal/userinfo');
+      const res = await fetch('/api/paypal/userinfo', {
+        headers: accountRequestHeaders(user),
+      });
       if (res.ok) {
         const data = await res.json();
         setBalance(typeof data.balance === 'number' ? data.balance : 500);
@@ -42,7 +47,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
 
     window.addEventListener('paypal_balance_updated', handleBalanceUpdate);
     return () => window.removeEventListener('paypal_balance_updated', handleBalanceUpdate);
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   function handleCopyCredentials() {
     navigator.clipboard.writeText('Email: sb-buyer@personal.example.com\nPassword: SandboxPassword123!');

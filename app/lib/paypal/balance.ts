@@ -1,29 +1,43 @@
 // app/lib/paypal/balance.ts
 
-/**
- * Shared in-memory store for the simulated PayPal Sandbox Money Pool.
- * Default starting sandbox pool is $500.00 USD.
- */
-let currentSandboxBalance = 500.0;
+/** Per-account balance store for the one-click simulated Sandbox Wallet. */
+const DEFAULT_SANDBOX_BALANCE = 500.0;
+const balances = new Map<string, number>();
 
-export function getSandboxBalance(): number {
-  return currentSandboxBalance;
+function accountKey(accountId?: string): string {
+  return accountId?.trim().toLowerCase() || 'demo-anonymous';
 }
 
-export function deductSandboxBalance(amountDollars: number): number {
-  const deduct = Math.max(0, amountDollars);
-  currentSandboxBalance = Math.max(0, parseFloat((currentSandboxBalance - deduct).toFixed(2)));
-  return currentSandboxBalance;
+function roundUsd(value: number): number {
+  return parseFloat(value.toFixed(2));
 }
 
-export function topUpSandboxBalance(amountDollars: number): number {
-  const add = Math.max(0, amountDollars);
-  currentSandboxBalance = parseFloat((currentSandboxBalance + add).toFixed(2));
-  return currentSandboxBalance;
+export function getSandboxBalance(accountId?: string): number {
+  return balances.get(accountKey(accountId)) ?? DEFAULT_SANDBOX_BALANCE;
 }
 
-export function setSandboxBalance(amountDollars: number): number {
-  currentSandboxBalance = Math.max(0, parseFloat(amountDollars.toFixed(2)));
-  return currentSandboxBalance;
+export function hasSandboxBalanceEntry(accountId?: string): boolean {
+  return balances.has(accountKey(accountId));
+}
+
+export function deductSandboxBalance(accountId: string | undefined, amountDollars: number): number {
+  const key = accountKey(accountId);
+  const next = roundUsd(Math.max(0, getSandboxBalance(key) - Math.max(0, amountDollars)));
+  balances.set(key, next);
+  return next;
+}
+
+export function topUpSandboxBalance(accountId: string | undefined, amountDollars: number): number {
+  const key = accountKey(accountId);
+  const next = roundUsd(getSandboxBalance(key) + Math.max(0, amountDollars));
+  balances.set(key, next);
+  return next;
+}
+
+export function setSandboxBalance(accountId: string | undefined, amountDollars: number): number {
+  const key = accountKey(accountId);
+  const next = roundUsd(Math.max(0, amountDollars));
+  balances.set(key, next);
+  return next;
 }
 
