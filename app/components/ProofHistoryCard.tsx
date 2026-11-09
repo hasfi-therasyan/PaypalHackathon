@@ -34,6 +34,20 @@ export function ProofHistoryCard({
 
   const commitStats = proof?.signals_json?.commitStats;
   const aiFindings = proof?.ai_findings_json;
+  const proofConfidence = typeof proof?.confidence === 'number'
+    ? Math.max(0, Math.min(1, proof.confidence))
+    : null;
+  const usesOcrOnly = isPhoto && (
+    aiFindings?.method === 'on_device_tesseract_ocr' ||
+    String(aiFindings?.model || '').toLowerCase().includes('tesseract')
+  );
+  const confidenceLabel = isPhoto ? 'OCR Confidence' : 'AI Confidence';
+  const inspectionMode = isPhoto ? 'AI + Friend Referee' : 'AI + Rules Review';
+  const analysisSummary = aiFindings?.summary || (
+    isPhoto
+      ? 'No automated summary was available. Your friend referee will inspect the photo against the locked rubric.'
+      : 'AI Referee confirmed authentic sprint commits with no padding or repetitive whitespace.'
+  );
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xs space-y-6">
@@ -89,16 +103,16 @@ export function ProofHistoryCard({
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-0.5">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">AI Confidence</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase">{confidenceLabel}</span>
               <span className="font-mono font-bold text-[#0070ba] block">
-                {Math.round((proof.confidence || 0.9) * 100)}% Match
+                {proofConfidence === null ? 'Not available' : `${Math.round(proofConfidence * 100)}%`}
               </span>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-0.5">
               <span className="text-[10px] text-slate-400 font-bold uppercase">Inspection Mode</span>
               <span className="font-mono font-bold text-emerald-700 block">
-                AI + Human Appeal
+                {inspectionMode}
               </span>
             </div>
           </div>
@@ -155,8 +169,9 @@ export function ProofHistoryCard({
                   {/* Scene Elements */}
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">
-                      Required Scene Elements Inspected
+                      {usesOcrOnly ? 'Scene Elements for Referee Review' : 'Required Scene Elements Inspected'}
                     </span>
+                    {usesOcrOnly && <p className="text-[10px] leading-relaxed text-slate-500">OCR verifies the challenge code only. Your friend referee checks these scene elements in the photo.</p>}
                     <div className="flex flex-wrap gap-1.5">
                       {requiredElements.map((el: string) => {
                         const confidence = Number(elementConfidences[el] || 0);
@@ -180,11 +195,11 @@ export function ProofHistoryCard({
                       AI Referee Analysis Summary
                     </span>
                     <p className="text-slate-700 leading-relaxed text-[11px]">
-                      {aiFindings?.summary || 'Vision referee confirmed authentic scene elements and matching handwritten challenge card.'}
+                      {analysisSummary}
                     </p>
                     {aiFindings?.model_ran_locally && (
                       <p className="text-[10px] text-slate-500 leading-relaxed">
-                        On-device model: {aiFindings.model || 'Transformers.js'}. This is supporting evidence; your friend referee has final authority.
+                        On-device model: {aiFindings.model || 'Tesseract.js'}. This is supporting evidence; your friend referee has final authority.
                       </p>
                     )}
                   </div>
@@ -224,7 +239,7 @@ export function ProofHistoryCard({
                 <div className="p-3 bg-white rounded-xl border border-slate-200 text-slate-600 font-sans text-[11px]">
                   <span>AI Referee Quality Check: </span>
                   <strong className="text-slate-800">
-                    {aiFindings?.summary || 'AI Referee confirmed authentic sprint commits with no padding or repetitive whitespace.'}
+                    {analysisSummary}
                   </strong>
                 </div>
               </div>
