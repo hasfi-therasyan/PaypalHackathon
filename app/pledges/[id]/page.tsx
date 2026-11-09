@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -50,6 +50,7 @@ export default function PledgeDetailPage() {
   const [ocrStatus, setOcrStatus] = useState<'idle' | 'reading' | 'complete' | 'unavailable'>('idle');
   const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [visionFinding, setVisionFinding] = useState<OnDeviceVisionFinding | null>(null);
+  const ocrRequestId = useRef(0);
 
   useEffect(() => {
     async function fetchPledge() {
@@ -133,6 +134,7 @@ export default function PledgeDetailPage() {
   }
 
   async function handlePhotoSelected(file: File | null) {
+    const requestId = ++ocrRequestId.current;
     setProofPhoto(file);
     setOcrResult(null);
     setOcrStatus(file ? 'reading' : 'idle');
@@ -160,17 +162,16 @@ export default function PledgeDetailPage() {
       setProofPhoto(imageToUpload);
       setPreparingPhoto(false);
 
-      Promise.race([
-        recognizeChallengeCode(imageToUpload),
-        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
-      ])
+      recognizeChallengeCode(imageToUpload)
         .then((ocr) => {
-          if (ocr) {
+          if (requestId === ocrRequestId.current) {
             setOcrResult(ocr);
             setOcrStatus('complete');
           }
         })
-        .catch(() => setOcrStatus('unavailable'));
+        .catch(() => {
+          if (requestId === ocrRequestId.current) setOcrStatus('unavailable');
+        });
     } catch (err: any) {
       console.warn('Photo processing fallback:', err);
       setPreparingPhoto(false);
@@ -386,17 +387,31 @@ export default function PledgeDetailPage() {
                           className="block w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
                         />
                         <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
-                          JPEG, PNG, or WebP. Your challenge code must be visible in the image.
+                          JPEG, PNG, or WebP. Keep the challenge code fully visible in the image.
                         </p>
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-slate-700" aria-label="Photo proof guidance">
+                          <p className="font-bold text-[#003087]">For a reliable AI code check</p>
+                          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                            <li>Show <span className="font-mono font-bold">{pledge.rubric_json?.challenge_code || 'your locked challenge code'}</span> large and on one line.</li>
+                            <li>Keep the code card, all required scene elements, and the photo edges in frame.</li>
+                            <li>Use bright, even light; avoid glare, blur, and text that is too small.</li>
+                          </ul>
+                        </div>
                         {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Preparing photo…</p>}
                         {compressionNote && <p className="text-[11px] text-emerald-700 font-medium" aria-live="polite">✓ {compressionNote}</p>}
                       </div>
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
                         <p className="font-bold text-slate-700">Challenge-code OCR</p>
                         <p className="font-mono text-xs text-[#003087]">
-                          {ocrResult?.detectedCode ? `Detected code: ${ocrResult.detectedCode}` : 'Code reading will run after the photo is prepared.'}
+                          {ocrResult?.detectedCode
+                            ? `Detected code: ${ocrResult.detectedCode}`
+                            : ocrStatus === 'reading'
+                              ? 'Improving and reading the code locally…'
+                              : ocrStatus === 'unavailable'
+                                ? 'Local code check is unavailable; your referee can still review the photo.'
+                                : 'Code reading will run after the photo is prepared.'}
                         </p>
-                        <p className="text-[11px] text-slate-500">OCR is one evidence signal; it never settles money by itself.</p>
+                        <p className="text-[11px] text-slate-500">OCR compares original, enlarged, and high-contrast views. It is one evidence signal; it never settles money by itself.</p>
                       </div>
 
                       <OnDeviceVisionCheck
