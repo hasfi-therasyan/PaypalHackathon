@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { pipeline } from '@huggingface/transformers';
 import {
   ON_DEVICE_VISION_MODEL,
   type OnDeviceVisionFinding,
@@ -65,6 +64,7 @@ export function OnDeviceVisionCheck({
 
     try {
       if (!classifierPromise) {
+        const { pipeline } = await import('@huggingface/transformers');
         const createLocalPipeline = pipeline as unknown as LocalPipelineFactory;
         classifierPromise = createLocalPipeline('zero-shot-image-classification', ON_DEVICE_VISION_MODEL, {
           progress_callback: (event) => {
