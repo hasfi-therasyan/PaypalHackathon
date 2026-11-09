@@ -20,6 +20,24 @@ type LocalPipelineFactory = (
 
 let classifierPromise: Promise<LocalClassifier> | null = null;
 
+function describeVisionError(cause: unknown) {
+  const message = cause instanceof Error ? cause.message.toLowerCase() : '';
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return 'You appear to be offline. Reconnect, then try the private AI check again. You can still submit this photo for friend review now.';
+  }
+
+  if (/fetch|network|download|load.*model|cors/.test(message)) {
+    return 'The private AI model could not download. Check your connection or browser privacy blocker, then try again. You can still submit this photo for friend review.';
+  }
+
+  if (/webassembly|wasm|not supported|unsupported/.test(message)) {
+    return 'This browser cannot run the private AI model. You can still submit this photo for friend review.';
+  }
+
+  return 'The private AI check could not start. Try again, or submit this photo for friend review.';
+}
+
 export function OnDeviceVisionCheck({
   image,
   requiredElements,
@@ -98,9 +116,14 @@ export function OnDeviceVisionCheck({
       setProgressPercent(100);
     } catch (cause) {
       console.warn('On-device vision unavailable', cause);
+      // A rejected cached promise would otherwise make every retry fail until
+      // the entire page is reloaded. The browser may still reuse downloaded
+      // model files on the next attempt.
+      classifierPromise = null;
       setStatus('unavailable');
       setProgress(null);
-      setError('The private AI check could not run on this browser. You can still submit this photo for friend review.');
+      setProgressPercent(null);
+      setError(describeVisionError(cause));
     }
   }
 
@@ -129,7 +152,7 @@ export function OnDeviceVisionCheck({
           disabled={!image || status === 'loading'}
           className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#0070ba] bg-white px-3 py-2.5 text-xs font-bold text-[#003087] transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status === 'loading' ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#0070ba]/30 border-t-[#0070ba]" /><span>{progress || 'Loading local model…'}</span></> : <span>Analyze photo privately on this device</span>}
+          {status === 'loading' ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#0070ba]/30 border-t-[#0070ba]" /><span>{progress || 'Loading local model…'}</span></> : <span>{status === 'unavailable' ? 'Try private AI check again' : 'Analyze photo privately on this device'}</span>}
         </button>
       )}
 
@@ -140,7 +163,7 @@ export function OnDeviceVisionCheck({
         </div>
       )}
 
-      {error && <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] leading-relaxed text-amber-900" role="status"><strong className="block">AI check unavailable</strong>{error}</div>}
+      {error && <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] leading-relaxed text-amber-900" role="alert"><strong className="block">AI check unavailable</strong>{error}</div>}
 
       {finding && (
         <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3" aria-live="polite">
