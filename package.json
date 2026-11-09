@@ -8,7 +8,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1",
     "@paypal/react-paypal-js": "^10.6.1",
     "@supabase/supabase-js": "^2.118.0",
     "next": "14.1.0",

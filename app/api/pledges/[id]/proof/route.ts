@@ -13,7 +13,7 @@ import { getViewer, requirePledgeAccess } from '@/app/lib/access';
 import { analyzeProofPhoto } from '@/app/lib/referee/vision';
 
 const OnDeviceVisionFindingSchema = z.object({
-  provider: z.literal('transformers.js'),
+  provider: z.enum(['transformers.js', 'tesseract.js']),
   model: z.string().min(1).max(200),
   ran_locally: z.literal(true),
   analyzed_at: z.string().datetime(),
@@ -146,7 +146,9 @@ export async function POST(
           element_confidences: confidences,
           confidence: Math.max(onDeviceFinding.confidence, Math.max(0, Math.min(1, body.ocr_confidence))),
         };
-        visionMethod = 'on_device_transformersjs_zero_shot';
+        visionMethod = onDeviceFinding.provider === 'tesseract.js'
+          ? 'on_device_tesseract_ocr'
+          : 'on_device_transformersjs_zero_shot';
       } else {
         try {
           // A configured vision service evaluates the private, short-lived URL.

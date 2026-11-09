@@ -47,6 +47,7 @@ export default function PledgeDetailPage() {
   const [proofPhoto, setProofPhoto] = useState<File | null>(null);
   const [compressionNote, setCompressionNote] = useState<string | null>(null);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<'idle' | 'reading' | 'complete' | 'unavailable'>('idle');
   const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [visionFinding, setVisionFinding] = useState<OnDeviceVisionFinding | null>(null);
 
@@ -134,6 +135,7 @@ export default function PledgeDetailPage() {
   async function handlePhotoSelected(file: File | null) {
     setProofPhoto(file);
     setOcrResult(null);
+    setOcrStatus(file ? 'reading' : 'idle');
     setCompressionNote(null);
     setVisionFinding(null);
     if (!file) return;
@@ -163,9 +165,12 @@ export default function PledgeDetailPage() {
         new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
       ])
         .then((ocr) => {
-          if (ocr) setOcrResult(ocr);
+          if (ocr) {
+            setOcrResult(ocr);
+            setOcrStatus('complete');
+          }
         })
-        .catch(() => {});
+        .catch(() => setOcrStatus('unavailable'));
     } catch (err: any) {
       console.warn('Photo processing fallback:', err);
       setPreparingPhoto(false);
@@ -218,11 +223,6 @@ export default function PledgeDetailPage() {
 
   const { pledge, proof, verdicts } = data;
   const stakeAmount = ((pledge.stake_cents || 0) / 100).toFixed(2);
-  const requiredPhotoElements: string[] = Array.isArray(pledge.rubric_json?.required_scene_elements)
-    ? pledge.rubric_json.required_scene_elements
-    : [];
-  const minimumPhotoConfidence = Number(pledge.rubric_json?.min_confidence || 0.7);
-
   return (
     <>
       {/* Full-screen Loading Overlay for Proof Submission */}
@@ -401,8 +401,9 @@ export default function PledgeDetailPage() {
 
                       <OnDeviceVisionCheck
                         image={proofPhoto}
-                        requiredElements={requiredPhotoElements}
-                        minimumConfidence={minimumPhotoConfidence}
+                        expectedCode={pledge.rubric_json?.challenge_code || ''}
+                        ocrResult={ocrResult}
+                        ocrStatus={ocrStatus}
                         onFinding={setVisionFinding}
                       />
                     </div>

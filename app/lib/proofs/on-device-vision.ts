@@ -1,7 +1,7 @@
-export const ON_DEVICE_VISION_MODEL = 'Xenova/clip-vit-base-patch32';
+export const ON_DEVICE_VISION_MODEL = 'tesseract.js/eng';
 
 export type OnDeviceVisionFinding = {
-  provider: 'transformers.js';
+  provider: 'tesseract.js';
   model: string;
   ran_locally: true;
   analyzed_at: string;
