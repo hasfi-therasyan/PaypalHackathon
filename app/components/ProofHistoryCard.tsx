@@ -22,11 +22,15 @@ export function ProofHistoryCard({
   const isGithub = pledge.goal_type === 'github';
 
   const expectedCode = pledge.rubric_json?.challenge_code || 'Issued after pledge creation';
-  const detectedCode = proof?.challenge_code || proof?.signals_json?.photoAnalysis?.code_read || proof?.ai_findings_json?.code_read || null;
-  const isCodeMatch = detectedCode && expectedCode && detectedCode.toLowerCase().trim() === expectedCode.toLowerCase().trim();
+  const detectedCode = proof?.signals_json?.photoAnalysis?.code_read || proof?.ai_findings_json?.code_read || null;
+  const isCodeMatch = proof?.signals_json?.codeMatch ?? (
+    detectedCode && expectedCode && detectedCode.toLowerCase().trim() === expectedCode.toLowerCase().trim()
+  );
 
   const sceneElements = proof?.ai_findings_json?.detected_scene_elements || proof?.signals_json?.photoAnalysis?.scene_elements || [];
   const requiredElements = pledge.rubric_json?.required_scene_elements || ['laptop', 'notes'];
+  const elementConfidences = proof?.ai_findings_json?.element_confidences || proof?.signals_json?.photoAnalysis?.element_confidences || {};
+  const minimumConfidence = pledge.rubric_json?.min_confidence || 0.7;
 
   const commitStats = proof?.signals_json?.commitStats;
   const aiFindings = proof?.ai_findings_json;
@@ -138,13 +142,13 @@ export function ProofHistoryCard({
                       </div>
                       <div className="text-right">
                         <span className="text-slate-500 block text-[10px]">Detected by OCR:</span>
-                        <span className="font-mono font-extrabold text-emerald-700 text-sm">
-                          {detectedCode || expectedCode}
+                        <span className={`font-mono font-extrabold text-sm ${isCodeMatch ? 'text-emerald-700' : 'text-amber-800'}`}>
+                          {detectedCode || 'Not confidently read'}
                         </span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 block mt-1">
-                      ✓ Challenge Code Card Authenticated
+                    <span className={`text-[10px] font-bold block mt-1 ${isCodeMatch ? 'text-emerald-700' : 'text-amber-800'}`}>
+                      {isCodeMatch ? '✓ Challenge code matched' : '! Challenge code needs referee review'}
                     </span>
                   </div>
 
@@ -154,15 +158,19 @@ export function ProofHistoryCard({
                       Required Scene Elements Inspected
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {requiredElements.map((el: string) => (
-                        <span
-                          key={el}
-                          className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 flex items-center gap-1"
-                        >
-                          <span className="text-emerald-600 font-bold">✓</span>
-                          <span>{el}</span>
-                        </span>
-                      ))}
+                      {requiredElements.map((el: string) => {
+                        const confidence = Number(elementConfidences[el] || 0);
+                        const isDetected = sceneElements.some((item: string) => item.toLowerCase().includes(el.toLowerCase())) && confidence >= minimumConfidence;
+                        return (
+                          <span
+                            key={el}
+                            className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 flex items-center gap-1"
+                          >
+                            <span className={isDetected ? 'text-emerald-600 font-bold' : 'text-amber-700 font-bold'}>{isDetected ? '✓' : '!'}</span>
+                            <span>{el} · {Math.round(confidence * 100)}%</span>
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -174,6 +182,11 @@ export function ProofHistoryCard({
                     <p className="text-slate-700 leading-relaxed text-[11px]">
                       {aiFindings?.summary || 'Vision referee confirmed authentic scene elements and matching handwritten challenge card.'}
                     </p>
+                    {aiFindings?.model_ran_locally && (
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        On-device model: {aiFindings.model || 'Transformers.js'}. This is supporting evidence; your friend referee has final authority.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

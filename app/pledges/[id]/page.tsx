@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { compressProofImageInBrowser } from '@/app/lib/proofs/compress-client';
@@ -10,6 +11,12 @@ import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
 import { SettlementReceiptCard } from '@/app/components/SettlementReceiptCard';
 import { ProofHistoryCard } from '@/app/components/ProofHistoryCard';
+import type { OnDeviceVisionFinding } from '@/app/lib/proofs/on-device-vision';
+
+const OnDeviceVisionCheck = dynamic(
+  () => import('@/app/components/OnDeviceVisionCheck').then((module) => module.OnDeviceVisionCheck),
+  { ssr: false }
+);
 
 function Requirement({ label, value }: { label: string; value: string }) {
   return (
@@ -41,6 +48,7 @@ export default function PledgeDetailPage() {
   const [compressionNote, setCompressionNote] = useState<string | null>(null);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [visionFinding, setVisionFinding] = useState<OnDeviceVisionFinding | null>(null);
 
   useEffect(() => {
     async function fetchPledge() {
@@ -101,6 +109,9 @@ export default function PledgeDetailPage() {
         formData.append('proof_photo', proofPhoto);
         formData.append('ocr_code', ocrResult?.detectedCode || '');
         formData.append('ocr_confidence', String(ocrResult?.confidence || 0));
+        if (visionFinding) {
+          formData.append('vision_findings', JSON.stringify(visionFinding));
+        }
         body = formData;
       }
 
@@ -124,6 +135,7 @@ export default function PledgeDetailPage() {
     setProofPhoto(file);
     setOcrResult(null);
     setCompressionNote(null);
+    setVisionFinding(null);
     if (!file) return;
 
     setPreparingPhoto(true);
@@ -206,6 +218,10 @@ export default function PledgeDetailPage() {
 
   const { pledge, proof, verdicts } = data;
   const stakeAmount = ((pledge.stake_cents || 0) / 100).toFixed(2);
+  const requiredPhotoElements: string[] = Array.isArray(pledge.rubric_json?.required_scene_elements)
+    ? pledge.rubric_json.required_scene_elements
+    : [];
+  const minimumPhotoConfidence = Number(pledge.rubric_json?.min_confidence || 0.7);
 
   return (
     <>
@@ -376,12 +392,19 @@ export default function PledgeDetailPage() {
                         {compressionNote && <p className="text-[11px] text-emerald-700 font-medium" aria-live="polite">✓ {compressionNote}</p>}
                       </div>
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
-                        <p className="font-bold text-slate-700">OCR & Challenge Code Status</p>
+                        <p className="font-bold text-slate-700">Challenge-code OCR</p>
                         <p className="font-mono text-xs text-[#003087]">
-                          {ocrResult?.detectedCode ? `Detected code: ${ocrResult.detectedCode}` : 'Photo loaded and ready for referee submission'}
+                          {ocrResult?.detectedCode ? `Detected code: ${ocrResult.detectedCode}` : 'Code reading will run after the photo is prepared.'}
                         </p>
-                        <p className="text-[11px] text-slate-500">Your nominated referee reviews your proof before final settlement.</p>
+                        <p className="text-[11px] text-slate-500">OCR is one evidence signal; it never settles money by itself.</p>
                       </div>
+
+                      <OnDeviceVisionCheck
+                        image={proofPhoto}
+                        requiredElements={requiredPhotoElements}
+                        minimumConfidence={minimumPhotoConfidence}
+                        onFinding={setVisionFinding}
+                      />
                     </div>
                   )}
 
