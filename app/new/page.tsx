@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
-import { COCO_RUBRIC_ELEMENTS, normalizeCocoRubricElements } from '@/app/lib/proofs/coco-rubric';
+import { COCO_RUBRIC_ELEMENTS, normalizeCocoRubricElements, type CocoRubricElement } from '@/app/lib/proofs/coco-rubric';
 
 interface CharityOption {
   id: string;
@@ -90,6 +90,7 @@ export default function CreatePledgePage() {
 
   // Photo & Visual proof configuration
   const [sceneElements, setSceneElements] = useState('person, sports ball, bottle');
+  const [objectSearch, setObjectSearch] = useState('');
   const [proofHint, setProofHint] = useState('Snap a photo of your gym floor or workout spot with your handwritten challenge code.');
 
   // GitHub rubric fields (optional fallback)
@@ -166,12 +167,17 @@ export default function CreatePledgePage() {
     [sceneElements]
   );
 
-  const toggleSceneElement = (element: string) => {
-    const next = new Set(selectedSceneElements);
-    if (next.has(element as any)) next.delete(element as any);
-    else if (next.size < 3) next.add(element as any);
+  const toggleSceneElement = (element: CocoRubricElement) => {
+    const next = new Set<CocoRubricElement>(selectedSceneElements);
+    if (next.has(element)) next.delete(element);
+    else if (next.size < 3) next.add(element);
     setSceneElements(COCO_RUBRIC_ELEMENTS.filter((item) => next.has(item)).join(', '));
   };
+
+  const matchingSceneElements = useMemo(() => {
+    const query = objectSearch.trim().toLowerCase();
+    return query ? COCO_RUBRIC_ELEMENTS.filter((element) => element.includes(query)) : COCO_RUBRIC_ELEMENTS;
+  }, [objectSearch]);
 
   // Construct Rubric JSON
   const rubricJson = useMemo(() => {
@@ -353,14 +359,31 @@ export default function CreatePledgePage() {
 
                 <div className="space-y-2">
                   <label className="font-bold text-slate-700">Objects for local AI detection <span className="font-normal text-slate-500">(choose up to 3)</span></label>
-                  <div className="flex flex-wrap gap-1.5" aria-label="Detectable photo-rubric objects">
-                    {COCO_RUBRIC_ELEMENTS.map((element) => {
-                      const selected = selectedSceneElements.includes(element);
-                      return <button key={element} type="button" onClick={() => toggleSceneElement(element)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${selected ? 'border-[#0070ba] bg-blue-50 text-[#003087]' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'}`}>{selected ? '✓ ' : ''}{element}</button>;
-                    })}
-                  </div>
+                  <details className="group rounded-xl border border-slate-300 bg-white">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs text-slate-800 marker:content-none [&::-webkit-details-marker]:hidden">
+                      <span className="min-w-0 truncate font-medium">{selectedSceneElements.length ? selectedSceneElements.join(', ') : 'Select detectable objects'}</span>
+                      <span className="shrink-0 font-mono text-[11px] font-bold text-[#0070ba]">{selectedSceneElements.length}/3 · Select</span>
+                    </summary>
+                    <div className="border-t border-slate-200 p-2.5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input value={objectSearch} onChange={(event) => setObjectSearch(event.target.value)} type="search" placeholder="Search 80 objects…" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs text-slate-900" />
+                        {selectedSceneElements.length > 0 && <button type="button" onClick={() => setSceneElements('')} className="shrink-0 px-2 py-2 text-[11px] font-bold text-[#0070ba] hover:underline">Clear</button>}
+                      </div>
+                      <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1.5" aria-label="All detectable COCO object classes">
+                        {matchingSceneElements.map((element) => {
+                          const selected = selectedSceneElements.includes(element);
+                          const atLimit = selectedSceneElements.length >= 3 && !selected;
+                          return <label key={element} className={`flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs ${atLimit ? 'cursor-not-allowed text-slate-400' : 'text-slate-700 hover:bg-white'}`}>
+                            <input type="checkbox" checked={selected} disabled={atLimit} onChange={() => toggleSceneElement(element)} className="h-4 w-4 rounded border-slate-300 text-[#0070ba] focus:ring-[#0070ba]" />
+                            <span>{element}</span>
+                          </label>;
+                        })}
+                        {!matchingSceneElements.length && <p className="px-2 py-3 text-xs text-slate-500">No supported object matches that search.</p>}
+                      </div>
+                    </div>
+                  </details>
                   <span className="text-[11px] leading-relaxed text-slate-500 block">
-                    The on-device detector can verify these standard object classes. Your friend referee still assesses context and completion.
+                    Search all 80 COCO object classes. The on-device detector verifies selected objects; your friend referee still assesses context and completion.
                   </span>
                 </div>
               </div>
