@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
+import { COCO_RUBRIC_ELEMENTS, normalizeCocoRubricElements } from '@/app/lib/proofs/coco-rubric';
 
 interface CharityOption {
   id: string;
@@ -88,7 +89,7 @@ export default function CreatePledgePage() {
   const [sprintHours, setSprintHours] = useState(24);
 
   // Photo & Visual proof configuration
-  const [sceneElements, setSceneElements] = useState('gym, workout weights, sneakers');
+  const [sceneElements, setSceneElements] = useState('person, sports ball, bottle');
   const [proofHint, setProofHint] = useState('Snap a photo of your gym floor or workout spot with your handwritten challenge code.');
 
   // GitHub rubric fields (optional fallback)
@@ -115,22 +116,22 @@ export default function CreatePledgePage() {
     if (cat === 'fitness') {
       setGoalType('photo');
       setGoalTitle('Morning Gym Workout Consistency');
-      setSceneElements('gym, fitness equipment, workout space');
+      setSceneElements('person, sports ball, bottle');
       setProofHint('Snap a photo of your gym weights or running shoes with your challenge code.');
     } else if (cat === 'study') {
       setGoalType('photo');
       setGoalTitle('Read 30 Pages & Review Study Notes');
-      setSceneElements('book, open notebook, desk, highlighter');
+      setSceneElements('book, laptop, keyboard');
       setProofHint('Snap a photo of your book or study notes with your challenge code.');
     } else if (cat === 'habit') {
       setGoalType('photo');
       setGoalTitle('7:00 AM Morning Wakeup & Screen-Free Routine');
-      setSceneElements('alarm clock, window sunrise, morning journal');
+      setSceneElements('clock, book, cup');
       setProofHint('Snap a photo of your morning routine area with the challenge code before 8 AM.');
     } else if (cat === 'productivity') {
       setGoalType('photo');
       setGoalTitle('Complete Project Presentation Deck & Inbox Zero');
-      setSceneElements('laptop, presentation slides, desk');
+      setSceneElements('laptop, keyboard, mouse');
       setProofHint('Snap a photo of your finished work slides with your challenge code.');
     } else if (cat === 'coding') {
       setGoalType('github');
@@ -160,6 +161,18 @@ export default function CreatePledgePage() {
     setBeneficiaryEmail(charity.email);
   };
 
+  const selectedSceneElements = useMemo(
+    () => normalizeCocoRubricElements(sceneElements.split(',')),
+    [sceneElements]
+  );
+
+  const toggleSceneElement = (element: string) => {
+    const next = new Set(selectedSceneElements);
+    if (next.has(element as any)) next.delete(element as any);
+    else if (next.size < 3) next.add(element as any);
+    setSceneElements(COCO_RUBRIC_ELEMENTS.filter((item) => next.has(item)).join(', '));
+  };
+
   // Construct Rubric JSON
   const rubricJson = useMemo(() => {
     if (goalType === 'photo') {
@@ -167,9 +180,9 @@ export default function CreatePledgePage() {
         category: goalCategory,
         type: 'photo',
         challenge_code_format: 'three-words-plus-digits',
-        required_scene_elements: sceneElements.split(',').map((s) => s.trim()).filter(Boolean),
+        required_scene_elements: selectedSceneElements,
         proof_hint: proofHint,
-        min_confidence: 0.8,
+        min_confidence: 0.5,
       };
     } else if (goalType === 'github') {
       return {
@@ -182,7 +195,7 @@ export default function CreatePledgePage() {
         min_changed_lines: 50,
       };
     }
-  }, [goalCategory, goalType, sceneElements, proofHint, repo, username, minCommits]);
+  }, [goalCategory, goalType, selectedSceneElements, proofHint, repo, username, minCommits]);
 
   const numericStake = Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01);
   const stakeCents = Math.round(numericStake * 100);
@@ -338,17 +351,16 @@ export default function CreatePledgePage() {
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Expected Visual Elements (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={sceneElements}
-                    onChange={(e) => setSceneElements(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 font-medium text-xs sm:text-sm"
-                    placeholder="e.g. gym, workout weights, sneakers"
-                  />
-                  <span className="text-[11px] text-slate-400 block">
-                    Our AI referee model checks for these elements to confirm authentic completion.
+                <div className="space-y-2">
+                  <label className="font-bold text-slate-700">Objects for local AI detection <span className="font-normal text-slate-500">(choose up to 3)</span></label>
+                  <div className="flex flex-wrap gap-1.5" aria-label="Detectable photo-rubric objects">
+                    {COCO_RUBRIC_ELEMENTS.map((element) => {
+                      const selected = selectedSceneElements.includes(element);
+                      return <button key={element} type="button" onClick={() => toggleSceneElement(element)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${selected ? 'border-[#0070ba] bg-blue-50 text-[#003087]' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'}`}>{selected ? '✓ ' : ''}{element}</button>;
+                    })}
+                  </div>
+                  <span className="text-[11px] leading-relaxed text-slate-500 block">
+                    The on-device detector can verify these standard object classes. Your friend referee still assesses context and completion.
                   </span>
                 </div>
               </div>

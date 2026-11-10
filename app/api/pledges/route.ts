@@ -5,6 +5,7 @@ import { db, PledgeRecord } from '@/app/lib/db';
 import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { generateChallengeCode } from '@/app/lib/referee/photo';
 import { getViewer } from '@/app/lib/access';
+import { isCocoRubricElement, normalizeCocoRubricElements } from '@/app/lib/proofs/coco-rubric';
 
 const MIN_STAKE_CENTS = 0;    // Allows from $0.01 cents upwards with no upper limit
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
@@ -40,8 +41,22 @@ export async function POST(request: NextRequest) {
 
     // Attach challenge code to photo rubric if photo goal
     const rubricToLock = { ...body.rubric_json };
-    if (body.goal_type === 'photo' && !rubricToLock.challenge_code) {
-      rubricToLock.challenge_code = generateChallengeCode();
+    if (body.goal_type === 'photo') {
+      const rawElements = Array.isArray(rubricToLock.required_scene_elements)
+        ? rubricToLock.required_scene_elements
+        : [];
+      const unsupportedElements = rawElements.filter(
+        (element: unknown) => typeof element !== 'string' || !isCocoRubricElement(element)
+      );
+      const normalizedElements = normalizeCocoRubricElements(rawElements);
+      if (unsupportedElements.length || !normalizedElements.length) {
+        return NextResponse.json(
+          { error: `Photo rubrics must include one or more supported local-detector objects: ${['book', 'bottle', 'chair', 'clock', 'cup', 'keyboard', 'laptop', 'mouse', 'person'].join(', ')}.` },
+          { status: 400 }
+        );
+      }
+      rubricToLock.required_scene_elements = normalizedElements;
+      if (!rubricToLock.challenge_code) rubricToLock.challenge_code = generateChallengeCode();
     }
 
     // Freeze rubric JSON and compute SHA-256 hash from canonical representation

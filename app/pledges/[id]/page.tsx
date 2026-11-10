@@ -17,6 +17,10 @@ const OnDeviceVisionCheck = dynamic(
   () => import('@/app/components/OnDeviceVisionCheck').then((module) => module.OnDeviceVisionCheck),
   { ssr: false }
 );
+const OnDeviceObjectCheck = dynamic(
+  () => import('@/app/components/OnDeviceObjectCheck').then((module) => module.OnDeviceObjectCheck),
+  { ssr: false }
+);
 
 function Requirement({ label, value }: { label: string; value: string }) {
   return (
@@ -49,7 +53,8 @@ export default function PledgeDetailPage() {
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [ocrStatus, setOcrStatus] = useState<'idle' | 'reading' | 'complete' | 'unavailable'>('idle');
   const [preparingPhoto, setPreparingPhoto] = useState(false);
-  const [visionFinding, setVisionFinding] = useState<OnDeviceVisionFinding | null>(null);
+  const [ocrFinding, setOcrFinding] = useState<OnDeviceVisionFinding | null>(null);
+  const [objectFinding, setObjectFinding] = useState<OnDeviceVisionFinding | null>(null);
   const ocrRequestId = useRef(0);
 
   useEffect(() => {
@@ -111,8 +116,9 @@ export default function PledgeDetailPage() {
         formData.append('proof_photo', proofPhoto);
         formData.append('ocr_code', ocrResult?.detectedCode || '');
         formData.append('ocr_confidence', String(ocrResult?.confidence || 0));
-        if (visionFinding) {
-          formData.append('vision_findings', JSON.stringify(visionFinding));
+        const onDeviceFinding = objectFinding || ocrFinding;
+        if (onDeviceFinding) {
+          formData.append('vision_findings', JSON.stringify(onDeviceFinding));
         }
         body = formData;
       }
@@ -139,7 +145,8 @@ export default function PledgeDetailPage() {
     setOcrResult(null);
     setOcrStatus(file ? 'reading' : 'idle');
     setCompressionNote(null);
-    setVisionFinding(null);
+    setOcrFinding(null);
+    setObjectFinding(null);
     if (!file) return;
 
     setPreparingPhoto(true);
@@ -419,7 +426,13 @@ export default function PledgeDetailPage() {
                         expectedCode={pledge.rubric_json?.challenge_code || ''}
                         ocrResult={ocrResult}
                         ocrStatus={ocrStatus}
-                        onFinding={setVisionFinding}
+                        onFinding={setOcrFinding}
+                      />
+                      <OnDeviceObjectCheck
+                        image={proofPhoto}
+                        requiredElements={Array.isArray(pledge.rubric_json?.required_scene_elements) ? pledge.rubric_json.required_scene_elements : []}
+                        minimumConfidence={Number(pledge.rubric_json?.min_confidence || 0.5)}
+                        onFinding={setObjectFinding}
                       />
                     </div>
                   )}

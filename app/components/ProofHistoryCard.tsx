@@ -176,13 +176,14 @@ export function ProofHistoryCard({
                       {requiredElements.map((el: string) => {
                         const confidence = Number(elementConfidences[el] || 0);
                         const isDetected = sceneElements.some((item: string) => item.toLowerCase().includes(el.toLowerCase())) && confidence >= minimumConfidence;
+                        const awaitingRefereeReview = usesOcrOnly;
                         return (
                           <span
                             key={el}
                             className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 flex items-center gap-1"
                           >
-                            <span className={isDetected ? 'text-emerald-600 font-bold' : 'text-amber-700 font-bold'}>{isDetected ? '✓' : '!'}</span>
-                            <span>{el} · {Math.round(confidence * 100)}%</span>
+                            <span className={isDetected ? 'text-emerald-600 font-bold' : awaitingRefereeReview ? 'text-slate-500 font-bold' : 'text-amber-700 font-bold'}>{isDetected ? '✓' : awaitingRefereeReview ? '—' : '!'}</span>
+                            <span>{awaitingRefereeReview ? `${el} · Awaiting referee review` : `${el} · ${Math.round(confidence * 100)}%`}</span>
                           </span>
                         );
                       })}
