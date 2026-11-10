@@ -6,14 +6,18 @@ import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/
 import { getViewer } from '@/app/lib/access';
 import { isCocoRubricElement, normalizeCocoRubricElements } from '@/app/lib/proofs/coco-rubric';
 
-const MIN_STAKE_CENTS = 0;    // Allows from $0.01 cents upwards with no upper limit
+const MIN_STAKE_CENTS = 500;
+const MAX_STAKE_CENTS = 5_000;
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
 
 const CreatePledgeSchema = z.object({
   goal_type: z.enum(['github', 'photo']),
   goal_title: z.string().min(3, 'Goal title must be at least 3 characters'),
   rubric_json: z.record(z.any()),
-  stake_cents: z.number().int().min(MIN_STAKE_CENTS), // No upper limit capacity
+  stake_cents: z.number()
+    .int()
+    .min(MIN_STAKE_CENTS, 'Stake must be at least $5.00 USD')
+    .max(MAX_STAKE_CENTS, 'Stake cannot exceed $50.00 USD'),
   beneficiary_name: z.string().min(1, 'Beneficiary name is required'),
   beneficiary_paypal_email: z.string().email('Valid beneficiary PayPal email required'),
   referee_email: z.string().email('Valid referee email required'),

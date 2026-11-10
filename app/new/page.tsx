@@ -203,11 +203,18 @@ export default function CreatePledgePage() {
     }
   }, [goalCategory, goalType, selectedSceneElements, proofHint, repo, username, minCommits]);
 
-  const numericStake = Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01);
+  const MIN_STAKE_USD = 5;
+  const MAX_STAKE_USD = 50;
+  const numericStake = parseFloat(String(stakeDollars));
   const stakeCents = Math.round(numericStake * 100);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!Number.isFinite(numericStake) || numericStake < MIN_STAKE_USD || numericStake > MAX_STAKE_USD) {
+      setErrorMessage(`Choose a stake between $${MIN_STAKE_USD.toFixed(2)} and $${MAX_STAKE_USD.toFixed(2)} USD.`);
+      return;
+    }
     
     // Resolve active user from React state, localStorage, or fallback
     let activeUser = user;
@@ -427,12 +434,12 @@ export default function CreatePledgePage() {
             )}
           </div>
 
-          {/* Step 3: Flexible Stake & Sprint Window (No Upper Limit, starts from 0.01) */}
+          {/* Step 3: Stake & Sprint Window */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-sm sm:text-base font-bold text-slate-900">3. Choose Your Stake &amp; Timeline</h2>
               <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
-                NO UPPER LIMIT · FROM $0.01
+                $5.00–$50.00 USD
               </span>
             </div>
 
@@ -451,22 +458,22 @@ export default function CreatePledgePage() {
                 {/* Interactive Slider Bar */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
-                    <span>$0.01</span>
+                    <span>$5</span>
+                    <span>$15</span>
+                    <span>$25</span>
+                    <span>$40</span>
                     <span>$50</span>
-                    <span>$100</span>
-                    <span>$250</span>
-                    <span>$500+</span>
                   </div>
                   <input
                     type="range"
-                    min="0.01"
-                    max="500"
+                    min="5"
+                    max="50"
                     step="0.01"
-                    value={Math.min(500, Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01))}
+                    value={Math.min(50, Math.max(5, parseFloat(String(stakeDollars)) || 5))}
                     onChange={(e) => setStakeDollars(parseFloat(e.target.value))}
                     className="w-full h-3 rounded-lg cursor-pointer accent-[#003087]"
                     style={{
-                      background: `linear-gradient(to right, #0070ba 0%, #003087 ${(Math.min(500, Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01)) / 500) * 100}%, #e2e8f0 ${(Math.min(500, Math.max(0.01, parseFloat(String(stakeDollars)) || 0.01)) / 500) * 100}%, #e2e8f0 100%)`
+                      background: `linear-gradient(to right, #0070ba 0%, #003087 ${((Math.min(50, Math.max(5, parseFloat(String(stakeDollars)) || 5)) - 5) / 45) * 100}%, #e2e8f0 ${((Math.min(50, Math.max(5, parseFloat(String(stakeDollars)) || 5)) - 5) / 45) * 100}%, #e2e8f0 100%)`
                     }}
                   />
                 </div>
@@ -477,7 +484,8 @@ export default function CreatePledgePage() {
                   <input
                     type="number"
                     step="0.01"
-                    min="0.01"
+                    min="5"
+                    max="50"
                     value={stakeDollars}
                     onChange={(e) => setStakeDollars(e.target.value)}
                     required
@@ -488,7 +496,7 @@ export default function CreatePledgePage() {
                 </div>
 
                 <span className="text-[11px] text-slate-500 block leading-tight">
-                  Enter any amount starting from $0.01 cents with zero upper restrictions. Funds remain safely held in PayPal Sandbox escrow.
+                  Choose $5.00–$50.00 USD. This matches the locked PayPal Sandbox demo limit and prevents rejected commitments.
                 </span>
               </div>
 
