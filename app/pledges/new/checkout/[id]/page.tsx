@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
+import { patchCachedPledge } from '@/app/lib/local-pledge-cache';
 
 export default function CheckoutPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -19,6 +20,17 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedFunding, setSelectedFunding] = useState<'balance' | 'card'>('balance');
   const [sandboxBalance, setSandboxBalance] = useState<number>(500);
+
+  function activeViewer() {
+    if (user) return user;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('stake_auth_user');
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return { email: 'user@example.com', role: 'user' as const, name: 'Demo User' };
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -82,10 +94,18 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
       // Notify header top bar and wallet modal of new balance
       if (typeof data.remainingBalance === 'number') {
+        setSandboxBalance(data.remainingBalance);
         window.dispatchEvent(
-          new CustomEvent('paypal_balance_updated', { detail: data.remainingBalance })
+          new CustomEvent('paypal_balance_updated', {
+            detail: { balance: data.remainingBalance, heldBalance: data.heldBalance },
+          })
         );
       }
+      patchCachedPledge(id, {
+        status: 'ACTIVE',
+        paypal_authorization_id: data.authorizationId,
+        paypal_order_id: data.orderId,
+      });
 
       router.push(`/pledges/${id}`);
     } catch (e: any) {
@@ -97,7 +117,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const createOrder = async () => {
     const res = await fetch(`/api/pledges/${id}/order`, {
       method: 'POST',
-      headers: accountRequestHeaders(user),
+        headers: accountRequestHeaders(activeViewer()),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -112,16 +132,24 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     try {
       const res = await fetch(`/api/pledges/${id}/authorize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(activeViewer()) },
         body: JSON.stringify({ orderId: data.orderID }),
       });
       const resData = await res.json();
       if (res.ok) {
         if (typeof resData.remainingBalance === 'number') {
+          setSandboxBalance(resData.remainingBalance);
           window.dispatchEvent(
-            new CustomEvent('paypal_balance_updated', { detail: resData.remainingBalance })
+            new CustomEvent('paypal_balance_updated', {
+              detail: { balance: resData.remainingBalance, heldBalance: resData.heldBalance },
+            })
           );
         }
+        patchCachedPledge(id, {
+          status: 'ACTIVE',
+          paypal_authorization_id: resData.authorizationId,
+          paypal_order_id: data.orderID,
+        });
         router.push(`/pledges/${id}`);
       } else {
         setErrorMsg(resData.error || 'Failed to authorize hold');
@@ -192,7 +220,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
           {/* Sandbox Money Pool Status */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-600 font-medium">Available PayPal Sandbox Pool:</span>
+              <span className="text-slate-600 font-medium">Available Stake demo pool:</span>
               <span className="font-mono font-bold text-slate-900">${sandboxBalance.toFixed(2)} USD</span>
             </div>
             <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200/60">
@@ -214,8 +242,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
-                💰 PayPal Balance
-                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Deduct from Sandbox pool</span>
+                💰 Stake demo balance
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Records an authorization hold in this demo</span>
               </button>
 
               <button
@@ -257,7 +285,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                 )}
               </button>
               <p className="text-[11px] text-center text-slate-500">
-                Instantly authorizes the hold and reduces your PayPal Sandbox money pool.
+                Records a temporary authorization hold in the Stake demo pool. Use the PayPal popup below to authorize with a Sandbox buyer account.
               </p>
 
               <div className="relative py-2 flex items-center justify-center">

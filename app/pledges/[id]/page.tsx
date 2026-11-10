@@ -11,6 +11,7 @@ import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
 import { SettlementReceiptCard } from '@/app/components/SettlementReceiptCard';
 import { ProofHistoryCard } from '@/app/components/ProofHistoryCard';
+import { patchCachedPledge } from '@/app/lib/local-pledge-cache';
 import type { OnDeviceVisionFinding } from '@/app/lib/proofs/on-device-vision';
 
 const OnDeviceVisionCheck = dynamic(
@@ -29,6 +30,21 @@ function Requirement({ label, value }: { label: string; value: string }) {
       <span className="block mt-1 font-bold text-slate-800 break-words">{value}</span>
     </div>
   );
+}
+
+function photoAnalysisCopy(category?: string) {
+  switch (category) {
+    case 'fitness':
+      return { title: 'Private AI activity check', description: 'A local detector looks only for the activity objects locked in your fitness rubric.' };
+    case 'study':
+      return { title: 'Private AI study-space check', description: 'A local detector looks only for the books and study objects locked in your rubric.' };
+    case 'habit':
+      return { title: 'Private AI routine check', description: 'A local detector looks only for the routine objects locked in your rubric.' };
+    case 'productivity':
+      return { title: 'Private AI productivity-workspace check', description: 'A local detector looks only for the workspace objects locked in your productivity rubric.' };
+    default:
+      return { title: 'Private AI photo-object check', description: 'A local detector looks only for the objects locked in your photo rubric.' };
+  }
 }
 
 export default function PledgeDetailPage() {
@@ -132,6 +148,8 @@ export default function PledgeDetailPage() {
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || 'Failed to submit proof.');
 
+      patchCachedPledge(pledgeId, { status: resData.newStatus || 'APPEAL_WINDOW_OPEN' });
+
       window.location.reload();
     } catch (err: any) {
       setError(err.message);
@@ -231,6 +249,7 @@ export default function PledgeDetailPage() {
 
   const { pledge, proof, verdicts } = data;
   const stakeAmount = ((pledge.stake_cents || 0) / 100).toFixed(2);
+  const photoAiCopy = photoAnalysisCopy(pledge.rubric_json?.category);
   return (
     <>
       {/* Full-screen Loading Overlay for Proof Submission */}
@@ -356,26 +375,32 @@ export default function PledgeDetailPage() {
 
                 <form onSubmit={handleProofSubmit} className="space-y-4">
                   {pledge.goal_type === 'github' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs">
-                      <div className="space-y-1">
-                        <label className="font-bold text-slate-700">Repository (owner/repo)</label>
-                        <input
-                          type="text"
-                          value={githubRepoInput}
-                          onChange={(e) => setGithubRepoInput(e.target.value)}
-                          required
-                          className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
-                        />
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs">
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-700">Repository (owner/repo)</label>
+                          <input
+                            type="text"
+                            value={githubRepoInput}
+                            onChange={(e) => setGithubRepoInput(e.target.value)}
+                            required
+                            className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="font-bold text-slate-700">Author Username</label>
+                          <input
+                            type="text"
+                            value={githubAuthorInput}
+                            onChange={(e) => setGithubAuthorInput(e.target.value)}
+                            required
+                            className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="font-bold text-slate-700">Author Username</label>
-                        <input
-                          type="text"
-                          value={githubAuthorInput}
-                          onChange={(e) => setGithubAuthorInput(e.target.value)}
-                          required
-                          className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-slate-900"
-                        />
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-slate-700">
+                        <p className="font-bold text-[#003087]">Private AI code-contribution check</p>
+                        <p className="mt-1">After submission, the verifier reads GitHub commit activity for this repository, measures the locked commit/day/line targets, and flags likely padding. No photo OCR or scene-object check is used for a coding commitment.</p>
                       </div>
                     </div>
                   ) : (
@@ -394,10 +419,10 @@ export default function PledgeDetailPage() {
                           className="block w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
                         />
                         <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
-                          JPEG, PNG, or WebP. Keep the challenge code fully visible in the image.
+                          JPEG, PNG, or WebP. Keep the proof code and the required objects fully visible in the image.
                         </p>
                         <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-slate-700" aria-label="Photo proof guidance">
-                          <p className="font-bold text-[#003087]">For a reliable AI code check</p>
+                          <p className="font-bold text-[#003087]">For a reliable {pledge.rubric_json?.category || 'photo'} proof check</p>
                           <ul className="mt-1 list-disc space-y-0.5 pl-4">
                             <li>Show <span className="font-mono font-bold">{pledge.rubric_json?.challenge_code || 'your locked challenge code'}</span> large and on one line.</li>
                             <li>Keep the code card, all required scene elements, and the photo edges in frame.</li>
@@ -408,7 +433,7 @@ export default function PledgeDetailPage() {
                         {compressionNote && <p className="text-[11px] text-emerald-700 font-medium" aria-live="polite">✓ {compressionNote}</p>}
                       </div>
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
-                        <p className="font-bold text-slate-700">Challenge-code OCR</p>
+                        <p className="font-bold text-slate-700">Proof-code OCR (supporting signal)</p>
                         <p className="font-mono text-xs text-[#003087]">
                           {ocrResult?.detectedCode
                             ? `Detected code: ${ocrResult.detectedCode}`
@@ -432,6 +457,8 @@ export default function PledgeDetailPage() {
                         image={proofPhoto}
                         requiredElements={Array.isArray(pledge.rubric_json?.required_scene_elements) ? pledge.rubric_json.required_scene_elements : []}
                         minimumConfidence={Number(pledge.rubric_json?.min_confidence || 0.5)}
+                        title={photoAiCopy.title}
+                        description={photoAiCopy.description}
                         onFinding={setObjectFinding}
                       />
                     </div>

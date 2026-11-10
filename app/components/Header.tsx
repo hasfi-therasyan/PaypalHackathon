@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { PayPalWalletModal } from './PayPalWalletModal';
 import { useAuth } from '../lib/auth-context';
 import { accountRequestHeaders } from '../lib/access';
+import { getCachedPool } from '../lib/local-pledge-cache';
 
 export function Header() {
   const router = useRouter();
@@ -26,7 +27,12 @@ export function Header() {
         if (res.ok) {
           const data = await res.json();
           if (typeof data.balance === 'number') {
-            setBalance(data.balance);
+            const browserPool = getCachedPool(user?.email);
+            setBalance(
+              browserPool && data.activeHoldsCount === 0 && browserPool.balance < data.balance
+                ? browserPool.balance
+                : data.balance
+            );
           }
         }
       } catch (e) {
@@ -38,6 +44,8 @@ export function Header() {
     const handleBalanceUpdate = (e: any) => {
       if (typeof e.detail === 'number') {
         setBalance(e.detail);
+      } else if (typeof e.detail?.balance === 'number') {
+        setBalance(e.detail.balance);
       } else {
         fetchBal();
       }
@@ -166,7 +174,7 @@ export function Header() {
               <div className="flex flex-col text-left leading-none">
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] sm:text-[10px] font-bold text-[#003087] tracking-tight uppercase">
-                    PayPal
+                    Stake
                   </span>
                   <span className="text-[8px] sm:text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200/80">
                     SANDBOX

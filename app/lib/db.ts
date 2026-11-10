@@ -204,7 +204,12 @@ export const db = {
         // Local demo fallback below.
       }
       let pledges = Array.from(memoryStore.pledges.values());
-      if (options.userId) pledges = pledges.filter((pledge) => pledge.user_id === options.userId);
+      if (options.userId) {
+        const normalizedUserId = options.userId.trim().toLowerCase();
+        pledges = pledges.filter(
+          (pledge) => pledge.user_id?.trim().toLowerCase() === normalizedUserId
+        );
+      }
       pledges = pledges
         .filter((pledge) => !options.cursor || pledge.created_at < options.cursor)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -247,7 +252,10 @@ export const db = {
       } catch {
         // Local demo fallback below.
       }
-      const pledges = Array.from(memoryStore.pledges.values()).filter((pledge) => pledge.user_id === userId);
+      const normalizedUserId = userId.trim().toLowerCase();
+      const pledges = Array.from(memoryStore.pledges.values()).filter(
+        (pledge) => pledge.user_id?.trim().toLowerCase() === normalizedUserId
+      );
       return {
         successes: pledges.filter((pledge) => pledge.status === 'SUCCEEDED').length,
         failures: pledges.filter((pledge) => pledge.status === 'CAPTURED' || pledge.status === 'PAID_OUT').length,

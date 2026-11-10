@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth-context';
 import { accountRequestHeaders } from '../lib/access';
+import { getCachedPool } from '../lib/local-pledge-cache';
 
 interface PayPalWalletModalProps {
   isOpen: boolean;
@@ -31,10 +32,13 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (typeof data.balance === 'number') setBalance(data.balance);
-        if (typeof data.startingBalance === 'number') setStartingBalance(data.startingBalance);
-        if (typeof data.heldBalance === 'number') setHeldBalance(data.heldBalance);
-        if (typeof data.activeHoldsCount === 'number') setActiveHoldsCount(data.activeHoldsCount);
+        const browserPool = getCachedPool(user?.email);
+        const useBrowserPool = Boolean(browserPool && data.activeHoldsCount === 0 && browserPool.balance < data.balance);
+        const report = useBrowserPool ? browserPool : data;
+        if (typeof report.balance === 'number') setBalance(report.balance);
+        if (typeof report.startingBalance === 'number') setStartingBalance(report.startingBalance);
+        if (typeof report.heldBalance === 'number') setHeldBalance(report.heldBalance);
+        if (typeof report.activeHoldsCount === 'number') setActiveHoldsCount(report.activeHoldsCount);
       }
     } catch (e) {
       console.warn('Failed to fetch balance', e);
@@ -51,8 +55,10 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
     const handleBalanceUpdate = (e: any) => {
       if (typeof e.detail === 'number') {
         setBalance(e.detail);
+      } else if (typeof e.detail?.balance === 'number') {
+        setBalance(e.detail.balance);
+        if (typeof e.detail.heldBalance === 'number') setHeldBalance(e.detail.heldBalance);
       }
-      fetchBalance();
     };
 
     window.addEventListener('paypal_balance_updated', handleBalanceUpdate);
@@ -115,7 +121,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-[#003087]">PayPal Sandbox Wallet</h2>
+                <h2 className="text-base font-bold text-[#003087]">Stake Sandbox Demo Wallet</h2>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
                   ESCROW POOL
                 </span>
@@ -145,7 +151,7 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
                 Available to Stake
               </span>
               <span className="text-[11px] font-semibold text-emerald-600 bg-white px-2.5 py-0.5 rounded-full border border-emerald-100 shadow-2xs">
-                ● Live Escrow Synced
+                ● Hold ledger balance
               </span>
             </div>
 
@@ -183,6 +189,8 @@ export function PayPalWalletModal({ isOpen, onClose }: PayPalWalletModalProps) {
                 <span className="font-mono text-sm">${balance.toFixed(2)} USD</span>
               </div>
             </div>
+
+            <p className="text-[10px] leading-relaxed text-slate-500">This is Stake&apos;s demo ledger of available sandbox funds and holds. The PayPal popup is the source of truth for a Sandbox buyer account; PayPal does not expose a buyer&apos;s live wallet balance to this app.</p>
           </div>
 
           {/* Interactive Top Up Slider Bar + Exact Box */}

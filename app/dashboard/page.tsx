@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
+import { getCachedPledges } from '@/app/lib/local-pledge-cache';
 
 export default function UserDashboardPage() {
   const { user, isReady } = useAuth();
@@ -11,24 +12,37 @@ export default function UserDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [activeDrawer, setActiveDrawer] = useState<any | null>(null);
+  const [usingBrowserBackup, setUsingBrowserBackup] = useState(false);
 
   useEffect(() => {
     async function loadPledges() {
-      if (!user) {
-        setPledges([]);
-        setLoading(false);
-        return;
+      let activeUser = user;
+      if (!activeUser && typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('stake_auth_user');
+          if (stored) activeUser = JSON.parse(stored);
+        } catch {}
       }
+      const viewer = activeUser || { email: 'user@example.com', role: 'user' as const };
+      const cached = getCachedPledges(viewer.email);
       try {
         const res = await fetch('/api/pledges?scope=owner', {
-          headers: accountRequestHeaders(user),
+          headers: accountRequestHeaders(viewer),
         });
         if (res.ok) {
           const data = await res.json();
-          setPledges(data.pledges || []);
+          const remote = data.pledges || [];
+          const remoteIds = new Set(remote.map((pledge: any) => pledge.id));
+          setPledges([...remote, ...cached.filter((pledge) => !remoteIds.has(pledge.id))]);
+          setUsingBrowserBackup(Boolean(cached.length && (!data.persistence || data.persistence !== 'supabase')));
+        } else {
+          setPledges(cached);
+          setUsingBrowserBackup(Boolean(cached.length));
         }
       } catch (e) {
         console.warn('Could not load commitments:', e);
+        setPledges(cached);
+        setUsingBrowserBackup(Boolean(cached.length));
       } finally {
         setLoading(false);
       }
@@ -164,6 +178,12 @@ export default function UserDashboardPage() {
           </div>
         </div>
       </section>
+
+      {usingBrowserBackup && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
+          <strong>Browser backup active.</strong> This deployment is not reporting shared database persistence, so commitments created in this browser remain visible here. Connect Supabase before sharing the demo across browsers or devices.
+        </div>
+      )}
 
       {/* Main Commitment Records */}
       <section className="space-y-4">

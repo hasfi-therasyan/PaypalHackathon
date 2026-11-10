@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { db, PledgeRecord } from '@/app/lib/db';
+import { db, hasSupabasePersistence, PledgeRecord } from '@/app/lib/db';
 import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { generateChallengeCode } from '@/app/lib/referee/photo';
 import { getViewer } from '@/app/lib/access';
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     const body = validated.data;
     const viewer = getViewer(request);
-    const creatorEmail = viewer?.email || body.user_email || 'user@example.com';
+    const creatorEmail = (viewer?.email || body.user_email || 'user@example.com').trim().toLowerCase();
     const pledgeId = crypto.randomUUID();
 
     // Attach challenge code to photo rubric if photo goal
@@ -108,7 +108,10 @@ export async function POST(request: NextRequest) {
       rubric_json: rubricToLock,
     });
 
-    return NextResponse.json(pledgeRecord, { status: 201 });
+    return NextResponse.json({
+      ...pledgeRecord,
+      persistence: hasSupabasePersistence ? 'supabase' : 'browser_fallback',
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating pledge:', error);
     return NextResponse.json(
@@ -131,7 +134,10 @@ export async function GET(request: NextRequest) {
 
     if (scope === 'owner') {
       const page = await db.pledges.listPage({ limit, cursor, userId: viewer.email });
-      return NextResponse.json(page, {
+      return NextResponse.json({
+        ...page,
+        persistence: hasSupabasePersistence ? 'supabase' : 'browser_fallback',
+      }, {
         headers: { 'Cache-Control': 'private, max-age=0, s-maxage=15, stale-while-revalidate=30' },
       });
     }

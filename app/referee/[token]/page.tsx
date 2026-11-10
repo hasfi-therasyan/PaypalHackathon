@@ -99,6 +99,17 @@ export default function RefereeAppealPage() {
 
   const { pledge, proof } = data;
   const formattedMoney = `$${(pledge.stake_cents / 100).toFixed(2)} USD`;
+  const aiFindings = proof?.ai_findings_json || null;
+  const proofConfidence = typeof proof?.confidence === 'number'
+    ? Math.max(0, Math.min(1, proof.confidence))
+    : null;
+  const isPhotoProof = proof?.kind === 'photo';
+  const requiredElements = Array.isArray(pledge.rubric_json?.required_scene_elements)
+    ? pledge.rubric_json.required_scene_elements
+    : [];
+  const elementConfidences = aiFindings?.element_confidences || {};
+  const detectedElements = aiFindings?.detected_scene_elements || [];
+  const minimumConfidence = Number(pledge.rubric_json?.min_confidence || 0.5);
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
@@ -176,6 +187,74 @@ export default function RefereeAppealPage() {
                 </p>
               </div>
             )}
+
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3" aria-labelledby="aiEvidenceTitle">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 id="aiEvidenceTitle" className="text-sm font-bold text-[#003087]">Private AI evidence details</h3>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Supporting signals only — your review remains the final authority.</p>
+                </div>
+                {proofConfidence !== null && (
+                  <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 font-mono text-[11px] font-bold text-[#003087]">
+                    Confidence {Math.round(proofConfidence * 100)}%
+                  </span>
+                )}
+              </div>
+
+              {!proof ? (
+                <p className="text-xs text-slate-600">No evidence has been submitted yet, so there are no AI signals to review.</p>
+              ) : isPhotoProof ? (
+                <div className="space-y-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <span className="block text-[10px] font-bold uppercase text-slate-400">Method</span>
+                      <span className="mt-1 block font-semibold text-slate-800">{aiFindings?.method?.replaceAll('_', ' ') || 'Awaiting analysis'}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <span className="block text-[10px] font-bold uppercase text-slate-400">Proof-code OCR</span>
+                      <span className="mt-1 block font-mono font-semibold text-slate-800">{aiFindings?.code_read || 'Not confidently read'}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <span className="block text-[10px] font-bold uppercase text-slate-400">Object model</span>
+                      <span className="mt-1 block font-semibold text-slate-800">{aiFindings?.model || 'Not available'}</span>
+                    </div>
+                  </div>
+                  {requiredElements.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="font-bold text-slate-700">Locked scene elements</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {requiredElements.map((element: string) => {
+                          const confidence = Number(elementConfidences[element] || 0);
+                          const detected = detectedElements.some((item: string) => item.toLowerCase() === element.toLowerCase()) && confidence >= minimumConfidence;
+                          return (
+                            <span key={element} className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${detected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                              {detected ? '✓' : '!'} {element} · {Math.round(confidence * 100)}%
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {aiFindings?.suspicious_signs?.length > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-amber-900">Signal to inspect: {aiFindings.suspicious_signs.join(' ')}</p>}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Quality score</span>
+                    <span className="mt-1 block font-mono font-bold text-[#003087]">{typeof aiFindings?.quality_score === 'number' ? `${Math.round(aiFindings.quality_score * 100)}%` : 'Not available'}</span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Padding signal</span>
+                    <span className={`mt-1 block font-bold ${aiFindings?.padding_detected ? 'text-amber-800' : 'text-emerald-700'}`}>{aiFindings?.padding_detected ? 'Review requested' : 'None flagged'}</span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">Analyzer</span>
+                    <span className="mt-1 block font-semibold text-slate-800">GitHub activity rules + quality scan</span>
+                  </div>
+                </div>
+              )}
+              {aiFindings?.trust_boundary && <p className="text-[10px] leading-relaxed text-slate-500">{aiFindings.trust_boundary}</p>}
+            </section>
 
             {data.proofImageUrl ? (
               <figure className="space-y-2">

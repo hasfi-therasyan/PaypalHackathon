@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
+import { cachePledge } from '@/app/lib/local-pledge-cache';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
 import { COCO_RUBRIC_ELEMENTS, normalizeCocoRubricElements, type CocoRubricElement } from '@/app/lib/proofs/coco-rubric';
 
@@ -245,6 +246,10 @@ export default function CreatePledgePage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create commitment.');
       }
+
+      // Preserve the just-created record in this browser as a continuity
+      // fallback while a demo deployment is being connected to Supabase.
+      cachePledge(data);
 
       if (stakeCents === 0) {
         router.push(`/pledges/${data.id}`);

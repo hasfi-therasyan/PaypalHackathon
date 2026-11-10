@@ -46,11 +46,15 @@ export function OnDeviceObjectCheck({
   image,
   requiredElements,
   minimumConfidence,
+  title = 'Private AI object check',
+  description = 'A local detector checks only the supported rubric objects. Results are evidence for your referee, never an automatic settlement.',
   onFinding,
 }: {
   image: File | null;
   requiredElements: string[];
   minimumConfidence: number;
+  title?: string;
+  description?: string;
   onFinding: (finding: OnDeviceVisionFinding | null) => void;
 }) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'complete' | 'unavailable' | 'unsupported'>('idle');
@@ -130,8 +134,8 @@ export function OnDeviceObjectCheck({
     <section className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 space-y-3" aria-labelledby="onDeviceObjectTitle">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 id="onDeviceObjectTitle" className="font-bold text-[#003087]">Private AI object check</h3>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">A local detector checks only the supported rubric objects. Results are evidence for your referee, never an automatic settlement.</p>
+          <h3 id="onDeviceObjectTitle" className="font-bold text-[#003087]">{title}</h3>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">{description}</p>
         </div>
         <span className="w-fit rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-[#0070ba]">ON-DEVICE</span>
       </div>
