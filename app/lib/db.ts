@@ -2,7 +2,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const rawUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseUrl = rawUrl && rawUrl.startsWith('http') ? rawUrl : 'https://placeholder.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'placeholder_anon_key';
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  'placeholder_anon_key';
 
 // Never make a network request to the placeholder client.  The app keeps a
 // memory-backed demo store, so an absent or malformed Supabase configuration
@@ -129,11 +134,17 @@ export const db = {
   pledges: {
     async create(pledge: PledgeRecord): Promise<PledgeRecord> {
       memoryStore.pledges.set(pledge.id, { ...pledge });
-      if (hasSupabasePersistence) try {
-        const { data, error } = await withDatabaseTimeout(supabase.from('pledges').insert([pledge]).select().single());
-        if (!error && data) return data as PledgeRecord;
-      } catch (e) {
-        console.warn('Supabase insert fallback to memory:', e);
+      if (hasSupabasePersistence) {
+        try {
+          const { data, error } = await withDatabaseTimeout(supabase.from('pledges').insert([pledge]).select().single());
+          if (error || !data) {
+            throw new Error(error?.message || 'Supabase did not return the saved commitment.');
+          }
+          return data as PledgeRecord;
+        } catch (error: any) {
+          memoryStore.pledges.delete(pledge.id);
+          throw new Error(`Could not save the commitment to shared storage: ${error?.message || 'unknown database error'}`);
+        }
       }
       return pledge;
     },
@@ -158,16 +169,21 @@ export const db = {
         const updated = { ...existing, ...updates, updated_at: new Date().toISOString() };
         memoryStore.pledges.set(id, updated);
       }
-      if (hasSupabasePersistence) try {
-        const { data, error } = await withDatabaseTimeout(supabase
-          .from('pledges')
-          .update({ ...updates, updated_at: new Date().toISOString() })
-          .eq('id', id)
-          .select()
-          .maybeSingle());
-        if (!error && data) return data as PledgeRecord;
-      } catch (e) {
-        // fallback
+      if (hasSupabasePersistence) {
+        try {
+          const { data, error } = await withDatabaseTimeout(supabase
+            .from('pledges')
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .maybeSingle());
+          if (error || !data) {
+            throw new Error(error?.message || 'Supabase did not return the updated commitment.');
+          }
+          return data as PledgeRecord;
+        } catch (error: any) {
+          throw new Error(`Could not update the commitment in shared storage: ${error?.message || 'unknown database error'}`);
+        }
       }
       return memoryStore.pledges.get(id) || null;
     },

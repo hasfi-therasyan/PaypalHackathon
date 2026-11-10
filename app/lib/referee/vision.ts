@@ -16,7 +16,6 @@ const VisionResponse = z.object({
  */
 export async function analyzeProofPhoto(input: {
   storagePath: string;
-  expectedCode: string;
   requiredSceneElements: string[];
 }): Promise<PhotoAnalysisResult> {
   const endpoint = process.env.VISION_REFEREE_URL;
@@ -41,7 +40,6 @@ export async function analyzeProofPhoto(input: {
     },
     body: JSON.stringify({
       image_url: data.signedUrl,
-      challenge_code: input.expectedCode,
       required_scene_elements: input.requiredSceneElements,
     }),
     signal: AbortSignal.timeout(15_000),

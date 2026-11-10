@@ -18,7 +18,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [authorizing, setAuthorizing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [selectedFunding, setSelectedFunding] = useState<'balance' | 'card'>('balance');
+  const [selectedFunding, setSelectedFunding] = useState<'paypal'>('paypal');
   const [sandboxBalance, setSandboxBalance] = useState<number>(500);
 
   function activeViewer() {
@@ -77,43 +77,6 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const stakeAmount = stakeDollars.toFixed(2);
   const projectedBalance = Math.max(0, sandboxBalance - stakeDollars).toFixed(2);
 
-  // 1-Click PayPal Sandbox Money Pool Payment & Hold
-  const handleSandboxBalancePay = async () => {
-    setAuthorizing(true);
-    setErrorMsg(null);
-    try {
-      const res = await fetch(`/api/pledges/${id}/authorize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(user) },
-        body: JSON.stringify({ source: 'sandbox_balance' }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to authorize PayPal Sandbox hold');
-      }
-
-      // Notify header top bar and wallet modal of new balance
-      if (typeof data.remainingBalance === 'number') {
-        setSandboxBalance(data.remainingBalance);
-        window.dispatchEvent(
-          new CustomEvent('paypal_balance_updated', {
-            detail: { balance: data.remainingBalance, heldBalance: data.heldBalance },
-          })
-        );
-      }
-      patchCachedPledge(id, {
-        status: 'ACTIVE',
-        paypal_authorization_id: data.authorizationId,
-        paypal_order_id: data.orderId,
-      });
-
-      router.push(`/pledges/${id}`);
-    } catch (e: any) {
-      setErrorMsg(e.message);
-      setAuthorizing(false);
-    }
-  };
-
   const createOrder = async () => {
     const res = await fetch(`/api/pledges/${id}/order`, {
       method: 'POST',
@@ -171,7 +134,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
         steps={[
           'Contacting PayPal Orders v2 Sandbox API...',
           'Placing temporary authorization hold on funds...',
-          'Updating sandbox money pool balance...',
+          'Recording the authorized hold in the Stake ledger...',
           'Activating commitment contract sprint...',
         ]}
       />
@@ -217,10 +180,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Sandbox Money Pool Status */}
+          {/* Stake ledger projection */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-600 font-medium">Available Stake demo pool:</span>
+              <span className="text-slate-600 font-medium">Stake ledger available after approval:</span>
               <span className="font-mono font-bold text-slate-900">${sandboxBalance.toFixed(2)} USD</span>
             </div>
             <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200/60">
@@ -229,94 +192,26 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Funding Source Selector */}
+          {/* Funding source */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">Preferred Sandbox Payment Source</label>
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <label className="text-xs font-bold text-slate-700 block">Sandbox payment source</label>
+            <div className="grid grid-cols-1 gap-2.5 sm:gap-3">
               <button
                 type="button"
-                onClick={() => setSelectedFunding('balance')}
+                onClick={() => setSelectedFunding('paypal')}
                 className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
-                  selectedFunding === 'balance'
+                  selectedFunding === 'paypal'
                     ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
-                💰 Stake demo balance
-                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Records an authorization hold in this demo</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedFunding('card')}
-                className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
-                  selectedFunding === 'card'
-                    ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                💳 Linked Debit/Card
-                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Sandbox mock Visa 4242</span>
+                PayPal Sandbox buyer approval
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Sign in to the PayPal popup and approve the temporary authorization hold</span>
               </button>
             </div>
           </div>
 
-          {/* Primary Action Button: "Paypal Sandbox" */}
-          {selectedFunding === 'balance' ? (
-            <div className="space-y-3 pt-1">
-              <button
-                type="button"
-                onClick={handleSandboxBalancePay}
-                disabled={authorizing || sandboxBalance < stakeDollars}
-                className="w-full py-4 px-6 rounded-xl font-bold text-sm bg-[#0070ba] hover:bg-[#003087] text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
-              >
-                {authorizing ? (
-                  <>
-                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    <span>Authorizing Hold...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-6 h-6 rounded-full bg-white text-[#0070ba] font-black text-xs flex items-center justify-center shadow-xs">
-                      P
-                    </span>
-                    <span>Paypal Sandbox (${stakeAmount} USD Hold)</span>
-                  </>
-                )}
-              </button>
-              <p className="text-[11px] text-center text-slate-500">
-                Records a temporary authorization hold in the Stake demo pool. Use the PayPal popup below to authorize with a Sandbox buyer account.
-              </p>
-
-              <div className="relative py-2 flex items-center justify-center">
-                <div className="border-t border-slate-200 w-full" />
-                <span className="bg-white px-2 text-[10px] uppercase font-mono font-bold text-slate-400 absolute">
-                  or use PayPal Popup Login
-                </span>
-              </div>
-
-              <PayPalScriptProvider
-                options={{
-                  clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
-                  currency: 'USD',
-                  intent: 'authorize',
-                }}
-              >
-                <PayPalButtons
-                  style={{
-                    layout: 'vertical',
-                    color: 'gold',
-                    shape: 'rect',
-                    label: 'pay',
-                    height: 44,
-                  }}
-                  createOrder={createOrder}
-                  onApprove={onApprove}
-                />
-              </PayPalScriptProvider>
-            </div>
-          ) : (
-            <div className="pt-2">
+          <div className="pt-2">
               <PayPalScriptProvider
                 options={{
                   clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
@@ -337,14 +232,13 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                   fundingSource="paypal"
                 />
               </PayPalScriptProvider>
-            </div>
-          )}
+          </div>
 
           {/* Quick sandbox hint */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
             <span className="font-bold text-slate-800 block">Sandbox Verification Guarantee:</span>
             <p>
-              Funds remain held in authorization state. If proof is accepted, the hold is voided with 0 fees. If forfeited, the stake is transferred to the designated beneficiary.
+              The PayPal popup is required for a real Sandbox authorization. Once approved, the authorization ID is recorded in the pledge ledger and the buyer&apos;s Sandbox account shows the hold.
             </p>
           </div>
         </div>

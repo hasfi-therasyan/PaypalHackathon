@@ -17,15 +17,9 @@ export function ProofHistoryCard({
 }: ProofHistoryCardProps) {
   if (!pledge) return null;
 
-  const hasProof = Boolean(proof && (proof.submitted_at || proof.signals_json || proof.challenge_code));
+  const hasProof = Boolean(proof && (proof.submitted_at || proof.signals_json));
   const isPhoto = pledge.goal_type === 'photo';
   const isGithub = pledge.goal_type === 'github';
-
-  const expectedCode = pledge.rubric_json?.challenge_code || 'Issued after pledge creation';
-  const detectedCode = proof?.signals_json?.photoAnalysis?.code_read || proof?.ai_findings_json?.code_read || null;
-  const isCodeMatch = proof?.signals_json?.codeMatch ?? (
-    detectedCode && expectedCode && detectedCode.toLowerCase().trim() === expectedCode.toLowerCase().trim()
-  );
 
   const sceneElements = proof?.ai_findings_json?.detected_scene_elements || proof?.signals_json?.photoAnalysis?.scene_elements || [];
   const requiredElements = pledge.rubric_json?.required_scene_elements || ['laptop', 'notes'];
@@ -37,11 +31,7 @@ export function ProofHistoryCard({
   const proofConfidence = typeof proof?.confidence === 'number'
     ? Math.max(0, Math.min(1, proof.confidence))
     : null;
-  const usesOcrOnly = isPhoto && (
-    aiFindings?.method === 'on_device_tesseract_ocr' ||
-    String(aiFindings?.model || '').toLowerCase().includes('tesseract')
-  );
-  const confidenceLabel = isPhoto ? 'OCR Confidence' : 'AI Confidence';
+  const confidenceLabel = 'AI Confidence';
   const inspectionMode = isPhoto ? 'AI + Friend Referee' : 'AI + Rules Review';
   const analysisSummary = aiFindings?.summary || (
     isPhoto
@@ -81,7 +71,7 @@ export function ProofHistoryCard({
           <span className="text-3xl block">📋</span>
           <p className="text-xs font-bold text-slate-800">No proof submitted yet for this sprint</p>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Once you submit your {isPhoto ? 'challenge photo' : 'GitHub commits'}, the evidence artifacts, OCR analysis, and referee verification trail will appear here automatically.
+            Once you submit your {isPhoto ? 'category-specific photo proof' : 'GitHub commits'}, the evidence artifacts and referee verification trail will appear here automatically.
           </p>
         </div>
       ) : (
@@ -142,48 +132,25 @@ export function ProofHistoryCard({
                   )}
                 </div>
 
-                {/* Challenge Code & Element OCR Check */}
+                {/* Category-specific object evidence */}
                 <div className="space-y-3 text-xs">
-                  {/* Challenge Code Card */}
-                  <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#003087]">
-                      Challenge Code Verification
-                    </span>
-                    <div className="flex justify-between items-baseline pt-1">
-                      <div>
-                        <span className="text-slate-500 block text-[10px]">Expected in photo:</span>
-                        <span className="font-mono font-extrabold text-[#003087] text-sm">{expectedCode}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-500 block text-[10px]">Detected by OCR:</span>
-                        <span className={`font-mono font-extrabold text-sm ${isCodeMatch ? 'text-emerald-700' : 'text-amber-800'}`}>
-                          {detectedCode || 'Not confidently read'}
-                        </span>
-                      </div>
-                    </div>
-                    <span className={`text-[10px] font-bold block mt-1 ${isCodeMatch ? 'text-emerald-700' : 'text-amber-800'}`}>
-                      {isCodeMatch ? '✓ Challenge code matched' : '! Challenge code needs referee review'}
-                    </span>
-                  </div>
-
                   {/* Scene Elements */}
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">
-                      {usesOcrOnly ? 'Scene Elements for Referee Review' : 'Required Scene Elements Inspected'}
+                      Required Category Objects Inspected
                     </span>
-                    {usesOcrOnly && <p className="text-[10px] leading-relaxed text-slate-500">OCR verifies the challenge code only. Your friend referee checks these scene elements in the photo.</p>}
+                    <p className="text-[10px] leading-relaxed text-slate-500">The detector checks only the objects locked for this commitment category. Your friend referee reviews the submitted photo in context.</p>
                     <div className="flex flex-wrap gap-1.5">
                       {requiredElements.map((el: string) => {
                         const confidence = Number(elementConfidences[el] || 0);
                         const isDetected = sceneElements.some((item: string) => item.toLowerCase().includes(el.toLowerCase())) && confidence >= minimumConfidence;
-                        const awaitingRefereeReview = usesOcrOnly;
                         return (
                           <span
                             key={el}
                             className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white border border-slate-200 text-slate-800 flex items-center gap-1"
                           >
-                            <span className={isDetected ? 'text-emerald-600 font-bold' : awaitingRefereeReview ? 'text-slate-500 font-bold' : 'text-amber-700 font-bold'}>{isDetected ? '✓' : awaitingRefereeReview ? '—' : '!'}</span>
-                            <span>{awaitingRefereeReview ? `${el} · Awaiting referee review` : `${el} · ${Math.round(confidence * 100)}%`}</span>
+                            <span className={isDetected ? 'text-emerald-600 font-bold' : 'text-amber-700 font-bold'}>{isDetected ? '✓' : '!'}</span>
+                            <span>{`${el} · ${Math.round(confidence * 100)}%`}</span>
                           </span>
                         );
                       })}

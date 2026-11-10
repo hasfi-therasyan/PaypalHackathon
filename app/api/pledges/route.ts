@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { db, hasSupabasePersistence, PledgeRecord } from '@/app/lib/db';
 import { appendLedgerEvent, canonicalJson, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
-import { generateChallengeCode } from '@/app/lib/referee/photo';
 import { getViewer } from '@/app/lib/access';
 import { isCocoRubricElement, normalizeCocoRubricElements } from '@/app/lib/proofs/coco-rubric';
 
@@ -39,7 +38,8 @@ export async function POST(request: NextRequest) {
     const creatorEmail = (viewer?.email || body.user_email || 'user@example.com').trim().toLowerCase();
     const pledgeId = crypto.randomUUID();
 
-    // Attach challenge code to photo rubric if photo goal
+    // Photo commitments are evaluated only against their locked category
+    // objects. A coding-only pledge uses GitHub activity instead.
     const rubricToLock = { ...body.rubric_json };
     if (body.goal_type === 'photo') {
       const rawElements = Array.isArray(rubricToLock.required_scene_elements)
@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
         );
       }
       rubricToLock.required_scene_elements = normalizedElements;
-      if (!rubricToLock.challenge_code) rubricToLock.challenge_code = generateChallengeCode();
     }
 
     // Freeze rubric JSON and compute SHA-256 hash from canonical representation

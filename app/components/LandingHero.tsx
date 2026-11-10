@@ -59,7 +59,7 @@ export function LandingHero() {
             </div>
             <h4 className="font-bold text-sm text-[#003087]">Verifiable Proof</h4>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              GitHub activity and challenge-code photos inspected with clear reasoning.
+              GitHub activity and category-specific photo evidence inspected with clear reasoning.
             </p>
           </div>
 

@@ -92,7 +92,7 @@ export default function CreatePledgePage() {
   // Photo & Visual proof configuration
   const [sceneElements, setSceneElements] = useState('person, sports ball, bottle');
   const [objectSearch, setObjectSearch] = useState('');
-  const [proofHint, setProofHint] = useState('Snap a photo of your gym floor or workout spot with your handwritten challenge code.');
+  const [proofHint, setProofHint] = useState('Capture your gym floor or workout spot with the activity objects clearly visible.');
 
   // GitHub rubric fields (optional fallback)
   const [repo, setRepo] = useState('hasfi/stake-contract');
@@ -119,22 +119,22 @@ export default function CreatePledgePage() {
       setGoalType('photo');
       setGoalTitle('Morning Gym Workout Consistency');
       setSceneElements('person, sports ball, bottle');
-      setProofHint('Snap a photo of your gym weights or running shoes with your challenge code.');
+      setProofHint('Capture your activity setting with the locked fitness objects clearly visible.');
     } else if (cat === 'study') {
       setGoalType('photo');
       setGoalTitle('Read 30 Pages & Review Study Notes');
       setSceneElements('book, laptop, keyboard');
-      setProofHint('Snap a photo of your book or study notes with your challenge code.');
+      setProofHint('Capture your book, notes, and study setup in one clear photo.');
     } else if (cat === 'habit') {
       setGoalType('photo');
       setGoalTitle('7:00 AM Morning Wakeup & Screen-Free Routine');
       setSceneElements('clock, book, cup');
-      setProofHint('Snap a photo of your morning routine area with the challenge code before 8 AM.');
+      setProofHint('Capture the routine objects that demonstrate your morning setup.');
     } else if (cat === 'productivity') {
       setGoalType('photo');
       setGoalTitle('Complete Project Presentation Deck & Inbox Zero');
       setSceneElements('laptop, keyboard, mouse');
-      setProofHint('Snap a photo of your finished work slides with your challenge code.');
+      setProofHint('Capture your completed workspace with the locked productivity objects visible.');
     } else if (cat === 'coding') {
       setGoalType('github');
       setGoalTitle('Ship Next.js Hackathon API & Auth Sprints');
@@ -186,7 +186,6 @@ export default function CreatePledgePage() {
       return {
         category: goalCategory,
         type: 'photo',
-        challenge_code_format: 'three-words-plus-digits',
         required_scene_elements: selectedSceneElements,
         proof_hint: proofHint,
         min_confidence: 0.5,

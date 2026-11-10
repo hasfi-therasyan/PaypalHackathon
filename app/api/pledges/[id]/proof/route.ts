@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { db, ProofRecord, VerdictRecord } from '@/app/lib/db';
 import { appendLedgerEvent, LEDGER_EVENT_TYPES } from '@/app/lib/ledger/chain';
 import { evaluateGitHubActivity, fetchGitHubCommits, GitHubRubric } from '@/app/lib/referee/github';
-import { evaluatePhotoProof, PhotoAnalysisResult, PhotoRubric } from '@/app/lib/referee/photo';
+import { PhotoAnalysisResult, PhotoRubric } from '@/app/lib/referee/photo';
 import { determineVerdict } from '@/app/lib/referee/verdict';
 import { voidAuthorization } from '@/app/lib/paypal/authorizations';
 import { compressAndStoreProofImage, ProofUploadError } from '@/app/lib/proofs/storage';
@@ -13,7 +13,7 @@ import { getViewer, requirePledgeAccess } from '@/app/lib/access';
 import { analyzeProofPhoto } from '@/app/lib/referee/vision';
 
 const OnDeviceVisionFindingSchema = z.object({
-  provider: z.enum(['transformers.js', 'tesseract.js', 'coco-ssd']),
+  provider: z.literal('coco-ssd'),
   model: z.string().min(1).max(200),
   ran_locally: z.literal(true),
   analyzed_at: z.string().datetime(),
@@ -104,12 +104,6 @@ export async function POST(
 
       const storedImage = await compressAndStoreProofImage(pledge.id, proofId, proofPhoto);
       storagePath = storedImage.path;
-      body = {
-        ocr_code: String(formData.get('ocr_code') || ''),
-        ocr_confidence: Number(formData.get('ocr_confidence') || 0),
-      };
-
-      const expectedCode = pledge.rubric_json.challenge_code || 'amber-otter-17';
       const rubric: PhotoRubric = {
         required_scene_elements: pledge.rubric_json.required_scene_elements || ['laptop', 'notes'],
         min_confidence: pledge.rubric_json.min_confidence || 0.70,
@@ -128,7 +122,7 @@ export async function POST(
       }
 
       let photoAnalysis: PhotoAnalysisResult;
-      let visionMethod = 'on_device_tesseract_ocr';
+      let visionMethod = 'object_detector_unavailable';
       if (onDeviceFinding) {
         // This output is intentionally treated as supplemental evidence: a
         // browser client can be modified, so a referee—not this payload—has
@@ -140,27 +134,22 @@ export async function POST(
           ])
         );
         photoAnalysis = {
-          code_read: body.ocr_code,
+          code_read: '',
           scene_elements: rubric.required_scene_elements.filter((element) => (confidences[element] || 0) >= 0.5),
           suspicious_signs: [],
           element_confidences: confidences,
-          confidence: Math.max(onDeviceFinding.confidence, Math.max(0, Math.min(1, body.ocr_confidence))),
+          confidence: onDeviceFinding.confidence,
         };
-        visionMethod = onDeviceFinding.provider === 'coco-ssd'
-          ? 'on_device_coco_ssd'
-          : onDeviceFinding.provider === 'tesseract.js'
-            ? 'on_device_tesseract_ocr'
-            : 'on_device_transformersjs_zero_shot';
+        visionMethod = 'on_device_coco_ssd';
       } else {
         try {
           // A configured vision service evaluates the private, short-lived URL.
           // Browser OCR remains a useful fallback and never decides settlement.
           photoAnalysis = await analyzeProofPhoto({
             storagePath: storedImage.path,
-            expectedCode,
             requiredSceneElements: rubric.required_scene_elements,
           });
-          visionMethod = process.env.VISION_REFEREE_URL ? 'vision_service_with_ocr_fallback' : visionMethod;
+          visionMethod = process.env.VISION_REFEREE_URL ? 'vision_service' : visionMethod;
         } catch (error) {
           console.warn('Vision analysis unavailable; retaining OCR evidence for referee review.', error);
           photoAnalysis = {
@@ -173,23 +162,26 @@ export async function POST(
         }
       }
 
-      if (!photoAnalysis.code_read && body.ocr_code) {
-        photoAnalysis.code_read = body.ocr_code;
-      }
-      photoAnalysis.confidence = Math.max(
-        photoAnalysis.confidence || 0,
-        Math.max(0, Math.min(1, body.ocr_confidence))
-      );
-
-      const evaluation = evaluatePhotoProof(expectedCode, photoAnalysis, rubric);
-      // OCR is an evidentiary signal, not an automated verdict. A trusted
-      // referee must review each photo proof before any PayPal settlement.
+      const missingElements = rubric.required_scene_elements.filter((element) => {
+        const detected = photoAnalysis.scene_elements.some(
+          (candidate) => candidate.toLowerCase().includes(element.toLowerCase())
+        );
+        return !detected || (photoAnalysis.element_confidences[element] || 0) < rubric.min_confidence;
+      });
+      // Object detection is supporting evidence only. A trusted referee must
+      // review each photo proof before any PayPal settlement.
       isPassed = false;
       isBorderline = true;
-      evalReasons = [...evaluation.reasons, 'Photo proof requires a final referee decision.'];
+      evalReasons = [
+        missingElements.length
+          ? `The category detector needs referee review for: ${missingElements.join(', ')}.`
+          : 'The category-specific objects were detected; photo proof still requires a final referee decision.',
+        'Photo proof requires a final referee decision.',
+      ];
       signalsJson = {
         photoAnalysis,
-        codeMatch: evaluation.code_match,
+        requiredSceneElements: rubric.required_scene_elements,
+        missingSceneElements: missingElements,
         image: storedImage,
       };
       aiFindingsJson = {
@@ -197,13 +189,11 @@ export async function POST(
         model: onDeviceFinding?.model || null,
         model_ran_locally: onDeviceFinding?.ran_locally || false,
         model_analyzed_at: onDeviceFinding?.analyzed_at || null,
-        code_read: photoAnalysis.code_read,
-        ocr_confidence: photoAnalysis.confidence,
         detected_scene_elements: photoAnalysis.scene_elements,
         element_confidences: photoAnalysis.element_confidences,
-        missing_scene_elements: evaluation.missing_elements,
+        missing_scene_elements: missingElements,
         suspicious_signs: photoAnalysis.suspicious_signs,
-        summary: evaluation.reasons.join(' '),
+        summary: evalReasons.join(' '),
         automatic_settlement: false,
         trust_boundary: 'Client-side AI output is supplemental evidence only; the assigned friend referee makes the final decision.',
       };
@@ -215,7 +205,7 @@ export async function POST(
       id: proofId,
       pledge_id: pledge.id,
       kind: pledge.goal_type,
-      challenge_code: pledge.goal_type === 'photo' ? (pledge.rubric_json.challenge_code || null) : null,
+      challenge_code: null,
       storage_path: storagePath,
       submitted_at: new Date().toISOString(),
       signals_json: signalsJson,

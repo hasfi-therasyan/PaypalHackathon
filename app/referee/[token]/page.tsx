@@ -183,7 +183,7 @@ export default function RefereeAppealPage() {
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm space-y-1">
                 <p className="font-bold text-[#003087]">Automated Findings for Your Consideration:</p>
                 <p className="leading-relaxed text-slate-600">
-                  {proof.ai_findings_json.summary || `Challenge-code reading: ${proof.ai_findings_json.code_read || 'not detected'} (${Math.round((proof.ai_findings_json.ocr_confidence || 0) * 100)}% confidence).`}
+                  {proof.ai_findings_json.summary || 'No automated summary was available. Review the evidence against the locked category objects.'}
                 </p>
               </div>
             )}
@@ -211,12 +211,12 @@ export default function RefereeAppealPage() {
                       <span className="mt-1 block font-semibold text-slate-800">{aiFindings?.method?.replaceAll('_', ' ') || 'Awaiting analysis'}</span>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-                      <span className="block text-[10px] font-bold uppercase text-slate-400">Proof-code OCR</span>
-                      <span className="mt-1 block font-mono font-semibold text-slate-800">{aiFindings?.code_read || 'Not confidently read'}</span>
-                    </div>
-                    <div className="rounded-lg border border-slate-200 bg-white p-2.5">
                       <span className="block text-[10px] font-bold uppercase text-slate-400">Object model</span>
                       <span className="mt-1 block font-semibold text-slate-800">{aiFindings?.model || 'Not available'}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <span className="block text-[10px] font-bold uppercase text-slate-400">Review scope</span>
+                      <span className="mt-1 block font-semibold text-slate-800">Locked category objects only</span>
                     </div>
                   </div>
                   {requiredElements.length > 0 && (

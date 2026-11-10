@@ -12,7 +12,7 @@ export default function UserDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [activeDrawer, setActiveDrawer] = useState<any | null>(null);
-  const [usingBrowserBackup, setUsingBrowserBackup] = useState(false);
+  const [storageMode, setStorageMode] = useState<'supabase' | 'browser_fallback' | null>(null);
 
   useEffect(() => {
     async function loadPledges() {
@@ -34,15 +34,15 @@ export default function UserDashboardPage() {
           const remote = data.pledges || [];
           const remoteIds = new Set(remote.map((pledge: any) => pledge.id));
           setPledges([...remote, ...cached.filter((pledge) => !remoteIds.has(pledge.id))]);
-          setUsingBrowserBackup(Boolean(cached.length && (!data.persistence || data.persistence !== 'supabase')));
+          setStorageMode(data.persistence === 'supabase' ? 'supabase' : 'browser_fallback');
         } else {
           setPledges(cached);
-          setUsingBrowserBackup(Boolean(cached.length));
+          setStorageMode('browser_fallback');
         }
       } catch (e) {
         console.warn('Could not load commitments:', e);
         setPledges(cached);
-        setUsingBrowserBackup(Boolean(cached.length));
+        setStorageMode('browser_fallback');
       } finally {
         setLoading(false);
       }
@@ -179,9 +179,9 @@ export default function UserDashboardPage() {
         </div>
       </section>
 
-      {usingBrowserBackup && (
+      {storageMode === 'browser_fallback' && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
-          <strong>Browser backup active.</strong> This deployment is not reporting shared database persistence, so commitments created in this browser remain visible here. Connect Supabase before sharing the demo across browsers or devices.
+          <strong>Shared storage needs configuration.</strong> This deployment is using browser backup, so a commitment may disappear after a server restart or from another device. Add the Supabase URL and key in Vercel, then deploy again.
         </div>
       )}
 

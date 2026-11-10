@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { compressProofImageInBrowser } from '@/app/lib/proofs/compress-client';
-import { recognizeChallengeCode, type OcrResult } from '@/app/lib/proofs/ocr-client';
 import { useAuth } from '@/app/lib/auth-context';
 import { accountRequestHeaders } from '@/app/lib/access';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
@@ -13,11 +12,6 @@ import { SettlementReceiptCard } from '@/app/components/SettlementReceiptCard';
 import { ProofHistoryCard } from '@/app/components/ProofHistoryCard';
 import { patchCachedPledge } from '@/app/lib/local-pledge-cache';
 import type { OnDeviceVisionFinding } from '@/app/lib/proofs/on-device-vision';
-
-const OnDeviceVisionCheck = dynamic(
-  () => import('@/app/components/OnDeviceVisionCheck').then((module) => module.OnDeviceVisionCheck),
-  { ssr: false }
-);
 const OnDeviceObjectCheck = dynamic(
   () => import('@/app/components/OnDeviceObjectCheck').then((module) => module.OnDeviceObjectCheck),
   { ssr: false }
@@ -62,16 +56,10 @@ export default function PledgeDetailPage() {
   // Proof inputs
   const [githubRepoInput, setGithubRepoInput] = useState('');
   const [githubAuthorInput, setGithubAuthorInput] = useState('');
-  const [photoCodeInput, setPhotoCodeInput] = useState('');
-  const [photoElementsInput, setPhotoElementsInput] = useState('laptop, notes');
   const [proofPhoto, setProofPhoto] = useState<File | null>(null);
   const [compressionNote, setCompressionNote] = useState<string | null>(null);
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
-  const [ocrStatus, setOcrStatus] = useState<'idle' | 'reading' | 'complete' | 'unavailable'>('idle');
   const [preparingPhoto, setPreparingPhoto] = useState(false);
-  const [ocrFinding, setOcrFinding] = useState<OnDeviceVisionFinding | null>(null);
   const [objectFinding, setObjectFinding] = useState<OnDeviceVisionFinding | null>(null);
-  const ocrRequestId = useRef(0);
 
   useEffect(() => {
     async function fetchPledge() {
@@ -94,7 +82,6 @@ export default function PledgeDetailPage() {
         if (json.pledge) {
           setGithubRepoInput(json.pledge.rubric_json?.repo || '');
           setGithubAuthorInput(json.pledge.rubric_json?.username || '');
-          setPhotoCodeInput(json.pledge.rubric_json?.challenge_code || '');
         }
       } catch (err: any) {
         setError(err.message);
@@ -130,11 +117,8 @@ export default function PledgeDetailPage() {
         }
         const formData = new FormData();
         formData.append('proof_photo', proofPhoto);
-        formData.append('ocr_code', ocrResult?.detectedCode || '');
-        formData.append('ocr_confidence', String(ocrResult?.confidence || 0));
-        const onDeviceFinding = objectFinding || ocrFinding;
-        if (onDeviceFinding) {
-          formData.append('vision_findings', JSON.stringify(onDeviceFinding));
+        if (objectFinding) {
+          formData.append('vision_findings', JSON.stringify(objectFinding));
         }
         body = formData;
       }
@@ -158,12 +142,8 @@ export default function PledgeDetailPage() {
   }
 
   async function handlePhotoSelected(file: File | null) {
-    const requestId = ++ocrRequestId.current;
     setProofPhoto(file);
-    setOcrResult(null);
-    setOcrStatus(file ? 'reading' : 'idle');
     setCompressionNote(null);
-    setOcrFinding(null);
     setObjectFinding(null);
     if (!file) return;
 
@@ -187,16 +167,6 @@ export default function PledgeDetailPage() {
       setProofPhoto(imageToUpload);
       setPreparingPhoto(false);
 
-      recognizeChallengeCode(imageToUpload)
-        .then((ocr) => {
-          if (requestId === ocrRequestId.current) {
-            setOcrResult(ocr);
-            setOcrStatus('complete');
-          }
-        })
-        .catch(() => {
-          if (requestId === ocrRequestId.current) setOcrStatus('unavailable');
-        });
     } catch (err: any) {
       console.warn('Photo processing fallback:', err);
       setPreparingPhoto(false);
@@ -259,7 +229,7 @@ export default function PledgeDetailPage() {
         subtitle="Uploading evidence, running referee verification checks, and updating the immutable SHA-256 ledger..."
         steps={[
           'Uploading sprint proof evidence securely...',
-          'Verifying challenge code & rubric requirements...',
+          'Checking the category-specific proof requirements...',
           'Computing AI referee evaluation...',
           'Recording immutable verdict on the ledger chain...',
         ]}
@@ -333,7 +303,7 @@ export default function PledgeDetailPage() {
                   </>
                 ) : (
                   <>
-                    <Requirement label="Challenge code" value={pledge.rubric_json?.challenge_code || 'Issued after commitment is created'} />
+                    <Requirement label="AI analysis" value={photoAiCopy.title.replace('Private AI ', '')} />
                     <Requirement label="Your photo must show" value={(pledge.rubric_json?.required_scene_elements || ['laptop', 'notes']).join(', ')} />
                     <Requirement label="Recognition target" value={`${Math.round((pledge.rubric_json?.min_confidence || 0.7) * 100)}% confidence`} />
                   </>
@@ -419,40 +389,18 @@ export default function PledgeDetailPage() {
                           className="block w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#003087] hover:file:bg-blue-100"
                         />
                         <p id="proofPhotoHint" className="text-[11px] leading-relaxed text-slate-500">
-                          JPEG, PNG, or WebP. Keep the proof code and the required objects fully visible in the image.
+                          JPEG, PNG, or WebP. Keep all required objects fully visible in the image.
                         </p>
                         <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-[11px] leading-relaxed text-slate-700" aria-label="Photo proof guidance">
                           <p className="font-bold text-[#003087]">For a reliable {pledge.rubric_json?.category || 'photo'} proof check</p>
                           <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                            <li>Show <span className="font-mono font-bold">{pledge.rubric_json?.challenge_code || 'your locked challenge code'}</span> large and on one line.</li>
-                            <li>Keep the code card, all required scene elements, and the photo edges in frame.</li>
+                            <li>Keep all required scene elements and the relevant activity or workspace in frame.</li>
                             <li>Use bright, even light; avoid glare, blur, and text that is too small.</li>
                           </ul>
                         </div>
                         {preparingPhoto && <p className="text-[11px] text-[#0070ba]" aria-live="polite">Preparing photo…</p>}
                         {compressionNote && <p className="text-[11px] text-emerald-700 font-medium" aria-live="polite">✓ {compressionNote}</p>}
                       </div>
-                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1" aria-live="polite">
-                        <p className="font-bold text-slate-700">Proof-code OCR (supporting signal)</p>
-                        <p className="font-mono text-xs text-[#003087]">
-                          {ocrResult?.detectedCode
-                            ? `Detected code: ${ocrResult.detectedCode}`
-                            : ocrStatus === 'reading'
-                              ? 'Improving and reading the code locally…'
-                              : ocrStatus === 'unavailable'
-                                ? 'Local code check is unavailable; your referee can still review the photo.'
-                                : 'Code reading will run after the photo is prepared.'}
-                        </p>
-                        <p className="text-[11px] text-slate-500">OCR compares original, enlarged, and high-contrast views. It is one evidence signal; it never settles money by itself.</p>
-                      </div>
-
-                      <OnDeviceVisionCheck
-                        image={proofPhoto}
-                        expectedCode={pledge.rubric_json?.challenge_code || ''}
-                        ocrResult={ocrResult}
-                        ocrStatus={ocrStatus}
-                        onFinding={setOcrFinding}
-                      />
                       <OnDeviceObjectCheck
                         image={proofPhoto}
                         requiredElements={Array.isArray(pledge.rubric_json?.required_scene_elements) ? pledge.rubric_json.required_scene_elements : []}
