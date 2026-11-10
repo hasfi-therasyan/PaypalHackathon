@@ -18,7 +18,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [authorizing, setAuthorizing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [selectedFunding, setSelectedFunding] = useState<'paypal'>('paypal');
+  const [selectedFunding, setSelectedFunding] = useState<'balance' | 'paypal'>('balance');
   const [sandboxBalance, setSandboxBalance] = useState<number>(500);
 
   function activeViewer() {
@@ -77,6 +77,38 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const stakeAmount = stakeDollars.toFixed(2);
   const projectedBalance = Math.max(0, sandboxBalance - stakeDollars).toFixed(2);
 
+  async function handleLocalBalanceHold() {
+    setAuthorizing(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/pledges/${id}/authorize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...accountRequestHeaders(activeViewer()) },
+        body: JSON.stringify({ source: 'sandbox_balance' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not place the local demo hold.');
+
+      if (typeof data.remainingBalance === 'number') {
+        setSandboxBalance(data.remainingBalance);
+        window.dispatchEvent(
+          new CustomEvent('paypal_balance_updated', {
+            detail: { balance: data.remainingBalance, heldBalance: data.heldBalance },
+          })
+        );
+      }
+      patchCachedPledge(id, {
+        status: 'ACTIVE',
+        paypal_authorization_id: data.authorizationId,
+        paypal_order_id: data.orderId,
+      });
+      router.push(`/pledges/${id}`);
+    } catch (error: any) {
+      setErrorMsg(error.message || 'Could not place the local demo hold.');
+      setAuthorizing(false);
+    }
+  }
+
   const createOrder = async () => {
     const res = await fetch(`/api/pledges/${id}/order`, {
       method: 'POST',
@@ -132,8 +164,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
         title="Authorizing PayPal Sandbox Hold..."
         subtitle="Placing a temporary authorization hold on your Sandbox balance and registering the event to the cryptographic ledger..."
         steps={[
-          'Contacting PayPal Orders v2 Sandbox API...',
-          'Placing temporary authorization hold on funds...',
+          'Checking the local demo balance...',
+          'Recording the temporary authorization hold...',
           'Recording the authorized hold in the Stake ledger...',
           'Activating commitment contract sprint...',
         ]}
@@ -180,10 +212,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Stake ledger projection */}
+          {/* Local demo balance */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-600 font-medium">Stake ledger available after approval:</span>
+              <span className="text-slate-600 font-medium">Available local demo balance:</span>
               <span className="font-mono font-bold text-slate-900">${sandboxBalance.toFixed(2)} USD</span>
             </div>
             <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200/60">
@@ -194,8 +226,20 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
           {/* Funding source */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">Sandbox payment source</label>
-            <div className="grid grid-cols-1 gap-2.5 sm:gap-3">
+            <label className="text-xs font-bold text-slate-700 block">Payment source</label>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedFunding('balance')}
+                className={`p-3 rounded-xl border text-xs font-bold transition-all text-left ${
+                  selectedFunding === 'balance'
+                    ? 'border-[#0070ba] bg-blue-50 text-[#003087] ring-1 ring-[#0070ba]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                Local app balance
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Instant demo hold and ledger update</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setSelectedFunding('paypal')}
@@ -205,13 +249,26 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
-                PayPal Sandbox buyer approval
-                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Sign in to the PayPal popup and approve the temporary authorization hold</span>
+                PayPal Sandbox
+                <span className="block text-[10px] font-normal text-slate-500 mt-0.5">Optional buyer approval popup</span>
               </button>
             </div>
           </div>
 
-          <div className="pt-2">
+          {selectedFunding === 'balance' ? (
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={handleLocalBalanceHold}
+                disabled={authorizing || sandboxBalance < stakeDollars}
+                className="w-full py-4 px-6 rounded-xl font-bold text-sm bg-[#0070ba] hover:bg-[#003087] text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2.5 active:scale-[0.99] disabled:opacity-50"
+              >
+                {authorizing ? 'Recording local hold…' : `Use Local Balance ($${stakeAmount} USD Hold)`}
+              </button>
+              <p className="text-[11px] text-center text-slate-500">This updates the application&apos;s local demo balance and temporary-hold ledger immediately.</p>
+            </div>
+          ) : (
+            <div className="pt-2">
               <PayPalScriptProvider
                 options={{
                   clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? 'test',
@@ -232,13 +289,14 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                   fundingSource="paypal"
                 />
               </PayPalScriptProvider>
-          </div>
+            </div>
+          )}
 
           {/* Quick sandbox hint */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
             <span className="font-bold text-slate-800 block">Sandbox Verification Guarantee:</span>
             <p>
-              The PayPal popup is required for a real Sandbox authorization. Once approved, the authorization ID is recorded in the pledge ledger and the buyer&apos;s Sandbox account shows the hold.
+              Local app balance is the primary hackathon-demo flow. The PayPal Sandbox option remains available when you want to demonstrate an external buyer approval.
             </p>
           </div>
         </div>
