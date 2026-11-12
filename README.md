@@ -1,6 +1,6 @@
 # Stake 💙
 
-> **Turn a promise into a contract—without charging successful effort.**
+> **Turn a promise into a contract without charging successful effort.**
 
 **Stake** is a commitment-contract app for short personal sprints. A creator locks a goal, verification rubric, stake, beneficiary, and trusted friend referee. They submit GitHub activity or category-specific photo evidence; automated checks provide transparent supporting signals, while the friend referee decides edge cases. Every meaningful decision is written to a tamper-evident ledger. 🔒
 
@@ -10,11 +10,11 @@ Built for the **PayPal AI Hackathon** using the PayPal Sandbox.
 
 Most goals fail because the cost of quitting is invisible. Stake makes that cost explicit while keeping success fair:
 
-1. **Make a commitment** — choose a coding, fitness, study, routine, or productivity sprint.
-2. **Lock the rules** — hash the rubric before the sprint begins so nobody can move the goalposts.
-3. **Place a hold** — use the local demo balance for a fast demo flow, or PayPal Sandbox checkout for an Orders v2 authorization.
-4. **Submit relevant proof** — GitHub evidence for coding; object-based photo evidence for photo commitments.
-5. **Settle transparently** — success voids the hold; a failed or disputed result goes to the trusted referee and recorded settlement flow.
+1. **Make a commitment:** choose a coding, fitness, study, routine, or productivity sprint.
+2. **Lock the rules:** hash the rubric before the sprint begins so nobody can move the goalposts.
+3. **Place a hold:** use the local demo balance for a fast demo flow, or PayPal Sandbox checkout for an Orders v2 authorization.
+4. **Submit relevant proof:** GitHub evidence for coding; object-based photo evidence for photo commitments.
+5. **Settle transparently:** success voids the hold; a failed or disputed result goes to the trusted referee and recorded settlement flow.
 
 ## 🧭 What judges can explore
 
@@ -34,7 +34,7 @@ Most goals fail because the cost of quitting is invisible. Stake makes that cost
 Stake deliberately avoids a generic “AI says yes” experience.
 
 - **Coding commitments** use GitHub activity analysis: required commits, active days, changed lines, and a quality check for likely padding.
-- **Photo commitments** use **TensorFlow.js + COCO-SSD Lite MobileNet V2** in the browser. The model checks only the objects that were locked for that category—for example, a productivity pledge checks its selected workspace objects, not a coding rubric.
+- **Photo commitments** use **TensorFlow.js + COCO-SSD Lite MobileNet V2** in the browser. The model checks only the objects locked for that category. For example, a productivity pledge checks its selected workspace objects, not a coding rubric.
 - **Stake Advisor** is a small **FastAPI + SciPy** Bayesian service. It uses a Beta-Binomial posterior over prior outcomes to show reliability and a budget-aware stake recommendation.
 - **Friend referee wins**: every photo proof remains supporting evidence only. The assigned friend makes the final appeal decision. 🤝
 
@@ -113,7 +113,7 @@ Run these SQL migrations in Supabase SQL Editor, in this order:
 
 1. `supabase/migrations/20261103_stake_schema.sql`
 2. `supabase/migrations/20261108_performance_indexes.sql`
-3. `supabase/migrations/20261112_remove_stake_cap.sql` — needed for an existing database that still has the former $50 constraint.
+3. `supabase/migrations/20261112_remove_stake_cap.sql`: needed for an existing database that still has the former $50 constraint.
 
 ### 5. Start the app
 
