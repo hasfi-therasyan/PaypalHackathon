@@ -204,15 +204,14 @@ export default function CreatePledgePage() {
   }, [goalCategory, goalType, selectedSceneElements, proofHint, repo, username, minCommits]);
 
   const MIN_STAKE_USD = 5;
-  const MAX_STAKE_USD = 50;
   const numericStake = parseFloat(String(stakeDollars));
   const stakeCents = Math.round(numericStake * 100);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!Number.isFinite(numericStake) || numericStake < MIN_STAKE_USD || numericStake > MAX_STAKE_USD) {
-      setErrorMessage(`Choose a stake between $${MIN_STAKE_USD.toFixed(2)} and $${MAX_STAKE_USD.toFixed(2)} USD.`);
+    if (!Number.isFinite(numericStake) || numericStake < MIN_STAKE_USD) {
+      setErrorMessage(`Choose a stake of at least $${MIN_STAKE_USD.toFixed(2)} USD.`);
       return;
     }
     
@@ -439,7 +438,7 @@ export default function CreatePledgePage() {
             <div className="flex justify-between items-center">
               <h2 className="text-sm sm:text-base font-bold text-slate-900">3. Choose Your Stake &amp; Timeline</h2>
               <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
-                $5.00–$50.00 USD
+                FROM $5.00 · NO APP CAP
               </span>
             </div>
 
@@ -455,37 +454,13 @@ export default function CreatePledgePage() {
                   </span>
                 </div>
 
-                {/* Interactive Slider Bar */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
-                    <span>$5</span>
-                    <span>$15</span>
-                    <span>$25</span>
-                    <span>$40</span>
-                    <span>$50</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="5"
-                    max="50"
-                    step="0.01"
-                    value={Math.min(50, Math.max(5, parseFloat(String(stakeDollars)) || 5))}
-                    onChange={(e) => setStakeDollars(parseFloat(e.target.value))}
-                    className="w-full h-3 rounded-lg cursor-pointer accent-[#003087]"
-                    style={{
-                      background: `linear-gradient(to right, #0070ba 0%, #003087 ${((Math.min(50, Math.max(5, parseFloat(String(stakeDollars)) || 5)) - 5) / 45) * 100}%, #e2e8f0 ${((Math.min(50, Math.max(5, parseFloat(String(stakeDollars)) || 5)) - 5) / 45) * 100}%, #e2e8f0 100%)`
-                    }}
-                  />
-                </div>
-
-                {/* Exact Input Box Underneath */}
+                {/* Exact, uncapped stake input */}
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
                   <input
                     type="number"
                     step="0.01"
                     min="5"
-                    max="50"
                     value={stakeDollars}
                     onChange={(e) => setStakeDollars(e.target.value)}
                     required
@@ -496,7 +471,7 @@ export default function CreatePledgePage() {
                 </div>
 
                 <span className="text-[11px] text-slate-500 block leading-tight">
-                  Choose $5.00–$50.00 USD. This matches the locked PayPal Sandbox demo limit and prevents rejected commitments.
+                  Enter any amount from $5.00 USD upward. The application has no maximum stake cap.
                 </span>
               </div>
 

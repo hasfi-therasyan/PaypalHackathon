@@ -7,7 +7,6 @@ import { getViewer } from '@/app/lib/access';
 import { isCocoRubricElement, normalizeCocoRubricElements } from '@/app/lib/proofs/coco-rubric';
 
 const MIN_STAKE_CENTS = 500;
-const MAX_STAKE_CENTS = 5_000;
 const MAX_SPRINT_HOURS = 48;  // 48 hours sprint limit
 
 const CreatePledgeSchema = z.object({
@@ -16,8 +15,7 @@ const CreatePledgeSchema = z.object({
   rubric_json: z.record(z.any()),
   stake_cents: z.number()
     .int()
-    .min(MIN_STAKE_CENTS, 'Stake must be at least $5.00 USD')
-    .max(MAX_STAKE_CENTS, 'Stake cannot exceed $50.00 USD'),
+    .min(MIN_STAKE_CENTS, 'Stake must be at least $5.00 USD'),
   beneficiary_name: z.string().min(1, 'Beneficiary name is required'),
   beneficiary_paypal_email: z.string().email('Valid beneficiary PayPal email required'),
   referee_email: z.string().email('Valid referee email required'),

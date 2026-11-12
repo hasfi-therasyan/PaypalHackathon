@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS pledges (
     goal_type TEXT NOT NULL CHECK (goal_type IN ('github', 'photo')),
     rubric_json JSONB NOT NULL,
     rubric_hash TEXT NOT NULL,
-    stake_cents INTEGER NOT NULL CHECK (stake_cents >= 500 AND stake_cents <= 5000), -- 5 to 50 USD
+    stake_cents INTEGER NOT NULL CHECK (stake_cents >= 500), -- Minimum 5 USD, no application cap
     currency TEXT NOT NULL DEFAULT 'USD',
     starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ends_at TIMESTAMPTZ NOT NULL,
